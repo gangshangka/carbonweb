@@ -220,25 +220,22 @@
             document.getElementById('playBtn').textContent = '▶';
         }
 
-        function startPlay() {
-            if (playing) return;
-            playing = true;
-            document.getElementById('playBtn').textContent = '⏸';
-            timer = setInterval(async () => {
-                let mIdx = availableMonths.indexOf(currentMonth);
-                let yIdx = availableYears.indexOf(currentYear);
-                mIdx++;
-                if (mIdx >= availableMonths.length) {
-                    mIdx = 0;
-                    yIdx++;
-                    if (yIdx >= availableYears.length) { stopPlay(); return; }
-                    currentYear = availableYears[yIdx];
-                }
-                currentMonth = availableMonths[mIdx];
-                await loadRaster(currentYear, currentMonth, true);
-            }, 1000); // 播放间隔改为1秒
+      function startPlay() {
+    if (playing) return;
+    playing = true;
+    document.getElementById('playBtn').textContent = '⏸';
+    timer = setInterval(async () => {
+        const currentIdx = allMonthsList.findIndex(
+            m => m.year === currentYear && m.month === currentMonth
+        );
+        if (currentIdx === -1 || currentIdx >= allMonthsList.length - 1) {
+            stopPlay();
+            return;
         }
-
+        const next = allMonthsList[currentIdx + 1];
+        await loadRaster(next.year, next.month, true);
+    }, 1000);
+}
         function initTimeline() {
             for (let y = 2012; y <= 2022; y++)
                 for (let m = 1; m <= 12; m++)
@@ -284,10 +281,9 @@
              viewer = new Cesium.Viewer('cesiumContainer', {
         terrainProvider: terrain,
         imageryProvider: new Cesium.UrlTemplateImageryProvider({
-            url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-            subdomains: ['a', 'b', 'c'],
-            maximumLevel: 17
-        }),
+    url: 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',
+    maximumLevel: 15
+}),
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
