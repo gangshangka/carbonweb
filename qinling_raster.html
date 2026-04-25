@@ -97,8 +97,9 @@
         const timeEnd = document.getElementById('timeEnd');
 
         function getImgUrl(year, month) {
-            const mm = month.padStart(2, '0');
-            return `tif/color_nep${year}${mm}.png`;
+        const mm = month.padStart(2, '0');
+        // 添加基础路径 "/carbonweb/"
+        return `/carbonweb/tif/color_nep${year}${mm}.png`;
         }
 
         // 更新左上角标签和滑块（不触发input事件）
