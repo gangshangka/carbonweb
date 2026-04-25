@@ -159,10 +159,10 @@
 
         // 使用 jsDelivr CDN 加速图片加载
         function getImgUrl(year, month) {
-            const mm = month.padStart(2, '0');
-            return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
+        const mm = month.padStart(2, '0');
+        // 直接使用 GitHub raw 链接，不走 CDN
+        return `https://raw.githubusercontent.com/gangshangka/carbonweb/main/tif/color_nep${year}${mm}.png`;
         }
-
         function updateUI(year, month, fromSlider = false) {
             const mm = month.padStart(2, '0');
             currentLabel.textContent = `✅ ${year}-${mm}`;
@@ -301,9 +301,9 @@
 
             setProgress(60, '正在加载秦岭占位图');
             const placeholderProvider = new Cesium.SingleTileImageryProvider({
-                url: 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/placeholder.png',
-                rectangle: qinlingRect
-            });
+            url: 'tif/placeholder.png',
+            rectangle: qinlingRect
+});
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
             placeholderLayer.alpha = 1.0;
 
