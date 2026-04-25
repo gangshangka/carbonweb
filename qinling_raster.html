@@ -277,16 +277,17 @@
 
         async function initGlobe() {
             // 使用 OpenTopoMap 免费地形图（不需要 Token 权限）
-            const terrain = await Cesium.createWorldTerrainAsync({ requestWaterMask: true, requestVertexNormals: true });
-
-            viewer = new Cesium.Viewer('cesiumContainer', {
-                terrainProvider: terrain,
-                // 关键：直接指定影像为 OpenTopoMap
-                imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-                    subdomains: ['a', 'b', 'c'],
-                    maximumLevel: 17
-                }),
+           const terrain = await Cesium.createWorldTerrainAsync({
+        requestWaterMask: true,
+        requestVertexNormals: true
+    });
+             viewer = new Cesium.Viewer('cesiumContainer', {
+        terrainProvider: terrain,
+        imageryProvider: new Cesium.UrlTemplateImageryProvider({
+            url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+            subdomains: ['a', 'b', 'c'],
+            maximumLevel: 17
+        }),
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
