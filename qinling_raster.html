@@ -94,18 +94,19 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // ⚠️ 替换为你的 Cesium Ion Token
+        // ⚠️ Token 仍保留用于地形服务，但影像已替换为免费 OpenTopoMap
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
         let viewer;
-        let placeholderLayer = null;   // 底层占位图
-        let layerA = null, layerB = null; // 热力图图层
+        let placeholderLayer = null;
+        let layerA = null, layerB = null;
         let activeLayer = 'A';
         let currentYear, currentMonth;
         let availableYears = [], availableMonths = [];
         let allMonthsList = [];
         let timer = null, playing = false;
         let transitionTimer = null;
+        let preloadedProvider = null; // 预加载下一张
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -129,19 +130,36 @@
             }
         }
 
-        // 创建热力图图层
-        async function createHeatmapLayer(year, month) {
-            const provider = new Cesium.SingleTileImageryProvider({
+        // 创建一个 provider（只创建，不添加到图层）
+        function createProvider(year, month) {
+            return new Cesium.SingleTileImageryProvider({
                 url: getImgUrl(year, month),
                 rectangle: qinlingRect
             });
-            const layer = viewer.imageryLayers.addImageryProvider(provider);
-            layer.alpha = 0.7;  // 半透明，透出底图
-            await provider.readyPromise;
-            return layer;
         }
 
-        function crossfade(fromLayer, toLayer, duration = 500) {
+        // 预加载下一个月
+        function preloadNext(year, month) {
+            const [nextYear, nextMonth] = getNextMonth(year, month);
+            if (nextYear) {
+                preloadedProvider = createProvider(nextYear, nextMonth);
+            }
+        }
+
+        function getNextMonth(year, month) {
+            let yIdx = availableYears.indexOf(year);
+            let mIdx = availableMonths.indexOf(month);
+            if (yIdx === -1 || mIdx === -1) return [null, null];
+            mIdx++;
+            if (mIdx >= availableMonths.length) {
+                mIdx = 0;
+                yIdx++;
+                if (yIdx >= availableYears.length) return [null, null];
+            }
+            return [availableYears[yIdx], availableMonths[mIdx]];
+        }
+
+        function crossfade(fromLayer, toLayer, duration = 300) {
             if (transitionTimer) clearInterval(transitionTimer);
             const start = Date.now();
             transitionTimer = setInterval(() => {
@@ -159,14 +177,27 @@
 
         async function loadRaster(year, month, updateSlider = true) {
             if (currentYear === year && currentMonth === month) return false;
-            const newLayer = await createHeatmapLayer(year, month);
-            const oldLayer = activeLayer === 'A' ? layerA : layerB;
 
+            // 如果有预加载的 provider，直接使用；否则新建
+            let provider;
+            const [nextYear, nextMonth] = getNextMonth(year, month);
+            if (preloadedProvider && getImgUrl(year, month) === preloadedProvider.url) {
+                provider = preloadedProvider;
+                preloadedProvider = null;
+            } else {
+                provider = createProvider(year, month);
+            }
+
+            const newLayer = viewer.imageryLayers.addImageryProvider(provider);
+            newLayer.alpha = 0;
+            await provider.readyPromise;
+
+            const oldLayer = activeLayer === 'A' ? layerA : layerB;
             if (activeLayer === 'A') layerB = newLayer; else layerA = newLayer;
             activeLayer = activeLayer === 'A' ? 'B' : 'A';
 
             if (oldLayer) {
-                crossfade(oldLayer, newLayer);
+                crossfade(oldLayer, newLayer, 300);
             } else {
                 newLayer.alpha = 0.7;
             }
@@ -174,6 +205,11 @@
             currentYear = year;
             currentMonth = month;
             updateUI(year, month, !updateSlider);
+
+            // 预加载下下个月（播放时用到）
+            if (playing && nextYear) {
+                preloadedProvider = createProvider(nextYear, nextMonth);
+            }
             return true;
         }
 
@@ -200,7 +236,7 @@
                 }
                 currentMonth = availableMonths[mIdx];
                 await loadRaster(currentYear, currentMonth, true);
-            }, 1500);
+            }, 1000); // 播放间隔改为1秒
         }
 
         function initTimeline() {
@@ -238,65 +274,65 @@
                 await loadRaster(year, month, false);
             });
         }
-async function initGlobe() {
-    // 使用 OpenTopoMap 免费地形瓦片（无需 Ion Token）
-const imageryLayer = Cesium.ImageryLayer.fromProviderAsync(
-    new Cesium.UrlTemplateImageryProvider({
-        url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c'],
-        maximumLevel: 17
-    })
-);
-    viewer = new Cesium.Viewer('cesiumContainer', {
-        terrainProvider: terrain,
-        imageryProvider: imageryLayer.imageryProvider,
-        animation: false, timeline: false, fullscreenButton: false,
-        homeButton: false, sceneModePicker: false, baseLayerPicker: false,
-        navigationHelpButton: false, geocoder: false, infoBox: false,
-        selectionIndicator: false
-    });
-    viewer.cesiumWidget.creditContainer.style.display = 'none';
-    viewer.scene.globe.enableLighting = true;
 
-    // 加载底层占位图
-    const placeholderProvider = new Cesium.SingleTileImageryProvider({
-        url: 'tif/placeholder.png',
-        rectangle: qinlingRect
-    });
-    placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
-    placeholderLayer.alpha = 1.0;
+        async function initGlobe() {
+            // 使用 OpenTopoMap 免费地形图（不需要 Token 权限）
+            const terrain = await Cesium.createWorldTerrainAsync({ requestWaterMask: true, requestVertexNormals: true });
 
-    // 视角：垂直秦岭 + 自动缩放
-    viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-        duration: 2,
-        complete: () => {
-            setTimeout(() => viewer.camera.zoomIn(50000), 200);
-            setTimeout(() => viewer.camera.zoomIn(30000), 700);
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                terrainProvider: terrain,
+                // 关键：直接指定影像为 OpenTopoMap
+                imageryProvider: new Cesium.UrlTemplateImageryProvider({
+                    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+                    subdomains: ['a', 'b', 'c'],
+                    maximumLevel: 17
+                }),
+                animation: false, timeline: false, fullscreenButton: false,
+                homeButton: false, sceneModePicker: false, baseLayerPicker: false,
+                navigationHelpButton: false, geocoder: false, infoBox: false,
+                selectionIndicator: false
+            });
+            viewer.cesiumWidget.creditContainer.style.display = 'none';
+            viewer.scene.globe.enableLighting = true;
+
+            // 占位底图
+            const placeholderProvider = new Cesium.SingleTileImageryProvider({
+                url: 'tif/placeholder.png',
+                rectangle: qinlingRect
+            });
+            placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
+            placeholderLayer.alpha = 1.0;
+
+            // 垂直秦岭并自动缩放
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+                duration: 2,
+                complete: () => {
+                    setTimeout(() => viewer.camera.zoomIn(50000), 200);
+                    setTimeout(() => viewer.camera.zoomIn(30000), 700);
+                }
+            });
+
+            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
+            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
+            document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 180000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 }
+            });
+            document.getElementById('flyVertical').onclick = () => viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
+            });
+
+            document.getElementById('playBtn').addEventListener('click', () => {
+                if (playing) stopPlay(); else startPlay();
+            });
+
+            initTimeline();
+            await loadRaster('2012', '1', true);
         }
-    });
 
-    // 按钮事件 (保持不变)
-    document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
-    document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
-    document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 180000),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 }
-    });
-    document.getElementById('flyVertical').onclick = () => viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
-    });
-
-    const playBtn = document.getElementById('playBtn');
-    playBtn.addEventListener('click', () => {
-        if (playing) stopPlay(); else startPlay();
-    });
-
-    initTimeline();
-    await loadRaster('2012', '1', true);
-}
         initGlobe().catch(err => console.error(err));
     </script>
 </body>
