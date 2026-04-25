@@ -158,10 +158,11 @@
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
 
-        function getImgUrl(year, month) {
-            const mm = month.padStart(2, '0');
-            return `tif/color_nep${year}${mm}.png`;
-        }
+       function getImgUrl(year, month) {
+    const mm = month.padStart(2, '0');
+    // 使用 jsDelivr 加速 GitHub 仓库文件（国内快）
+    return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
+}
 
         function updateUI(year, month, fromSlider = false) {
             const mm = month.padStart(2, '0');
