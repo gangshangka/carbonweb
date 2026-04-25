@@ -8,7 +8,6 @@
     <style>
         html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
         body { font-family: "Helvetica Neue", Arial, sans-serif; }
-        /* 进度条遮罩 */
         .loading-overlay {
             position: fixed; top:0; left:0; width:100%; height:100%;
             background: rgba(10,10,20,0.85); backdrop-filter: blur(10px);
@@ -125,7 +124,6 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // Cesium Ion Token 保留用于地形服务（1.118无需Token也可用高德底图，但保留以兼容）
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
         // 进度条
@@ -159,13 +157,6 @@
         const timeSlider = document.getElementById('timeSlider');
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
-
-        // ========== 高德卫星图影像提供者 ==========
-        const amapImgProvider = new Cesium.UrlTemplateImageryProvider({
-            url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
-            subdomains: ['1', '2', '3', '4'],
-            maximumLevel: 18
-        });
 
         function getImgUrl(year, month) {
             const mm = month.padStart(2, '0');
@@ -286,16 +277,21 @@
         }
 
         async function initGlobe() {
-            setProgress(10, '正在加载地形数据');
+            setProgress(10, '正在加载地形');
             const terrain = await Cesium.createWorldTerrainAsync({
                 requestWaterMask: true,
                 requestVertexNormals: true
             });
 
-            setProgress(40, '正在加载高德卫星影像');
+            setProgress(30, '正在加载地形底图');
+            // 🏔️ 关键：使用 Ion TERRAIN 地形样式（山脉阴影）
+            const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
+                style: Cesium.IonWorldImageryStyle.TERRAIN
+            });
+
             viewer = new Cesium.Viewer('cesiumContainer', {
                 terrainProvider: terrain,
-                imageryProvider: amapImgProvider,   // 关键：使用高德卫星影像
+                imageryProvider: imageryLayer.imageryProvider,
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
