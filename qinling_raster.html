@@ -8,6 +8,30 @@
     <style>
         html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
         body { font-family: "Helvetica Neue", Arial, sans-serif; }
+        /* 进度条遮罩 */
+        .loading-overlay {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: rgba(10,10,20,0.85); backdrop-filter: blur(10px);
+            z-index: 9999; display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.4s ease;
+        }
+        .loading-box {
+            text-align: center; color: #fff;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 20px; padding: 30px 50px; backdrop-filter: blur(20px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .loading-text { font-size: 20px; margin-bottom: 16px; letter-spacing: 1px; }
+        .progress-bar {
+            width: 280px; height: 6px; background: rgba(255,255,255,0.15);
+            border-radius: 3px; overflow: hidden; margin: 0 auto 10px;
+        }
+        .progress-fill {
+            height: 100%; width: 0%; background: linear-gradient(90deg, #4fc3f7, #81c784);
+            border-radius: 3px; transition: width 0.3s ease;
+        }
+        .progress-num { font-size: 16px; opacity: 0.8; }
+        /* 左上角标签 */
         .current-label {
             position: absolute; top: 12px; left: 12px; z-index: 2000;
             background: rgba(20,20,30,0.78); backdrop-filter: blur(8px);
@@ -62,6 +86,15 @@
     </style>
 </head>
 <body>
+    <!-- 加载进度条 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-box">
+            <div class="loading-text" id="loadingText">正在加载秦岭碳汇数据</div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-num" id="progressNum">0%</div>
+        </div>
+    </div>
+
     <div id="cesiumContainer"></div>
     <div class="current-label" id="currentLabel">✅ 加载中...</div>
 
@@ -94,8 +127,25 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // ⚠️ 替换为你的 Cesium Ion Token
+        // ⚠️ 替换为你的 Cesium Ion Token（如果线上仍然蓝色，请去 ion.cesium.com 重新生成一个）
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
+
+        // 进度条控制
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const progressFill = document.getElementById('progressFill');
+        const progressNum = document.getElementById('progressNum');
+        const loadingText = document.getElementById('loadingText');
+
+        function setProgress(percent, text) {
+            progressFill.style.width = percent + '%';
+            progressNum.textContent = percent + '%';
+            if (text) loadingText.textContent = text;
+        }
+
+        function hideLoading() {
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
+        }
 
         let viewer;
         let placeholderLayer = null;
@@ -232,12 +282,15 @@
         }
 
         async function initGlobe() {
+            setProgress(10, '正在加载地形数据');
+
             const terrain = await Cesium.createWorldTerrainAsync({
                 requestWaterMask: true,
                 requestVertexNormals: true
             });
 
-            // ✅ 强制使用 Cesium Ion 的 TERRAIN 地形影像（山脉阴影效果）
+            setProgress(30, '正在加载地形底图');
+
             const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
                 style: Cesium.IonWorldImageryStyle.TERRAIN
             });
@@ -253,7 +306,8 @@
             viewer.cesiumWidget.creditContainer.style.display = 'none';
             viewer.scene.globe.enableLighting = true;
 
-            // 底层占位图
+            setProgress(60, '正在加载秦岭占位图');
+
             const placeholderProvider = new Cesium.SingleTileImageryProvider({
                 url: 'tif/placeholder.png',
                 rectangle: qinlingRect
@@ -261,7 +315,9 @@
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
             placeholderLayer.alpha = 1.0;
 
-            // 垂直秦岭 + 自动缩放
+            setProgress(80, '正在准备热力图数据');
+
+            // 垂直视角 + 缩放
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
@@ -272,6 +328,7 @@
                 }
             });
 
+            // 按钮事件
             document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
             document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
             document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
@@ -288,10 +345,19 @@
             });
 
             initTimeline();
+
+            setProgress(95, '正在加载首帧热力图');
             await loadRaster('2012', '1', true);
+
+            setProgress(100, '加载完成');
+            setTimeout(hideLoading, 500);
         }
 
-        initGlobe().catch(err => console.error(err));
+        initGlobe().catch(err => {
+            console.error(err);
+            setProgress(100, '加载失败，请刷新重试');
+            setTimeout(hideLoading, 2000);
+        });
     </script>
 </body>
 </html>
