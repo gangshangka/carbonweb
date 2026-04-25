@@ -239,9 +239,14 @@
             });
         }
 async function initGlobe() {
-    const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({ style: Cesium.IonWorldImageryStyle.TERRAIN });
-    const terrain = await Cesium.createWorldTerrainAsync({ requestWaterMask: true, requestVertexNormals: true });
-
+    // 使用 OpenTopoMap 免费地形瓦片（无需 Ion Token）
+const imageryLayer = Cesium.ImageryLayer.fromProviderAsync(
+    new Cesium.UrlTemplateImageryProvider({
+        url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        subdomains: ['a', 'b', 'c'],
+        maximumLevel: 17
+    })
+);
     viewer = new Cesium.Viewer('cesiumContainer', {
         terrainProvider: terrain,
         imageryProvider: imageryLayer.imageryProvider,
