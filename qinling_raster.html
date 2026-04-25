@@ -94,6 +94,7 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
+        // ⚠️ 替换为你的 Cesium Ion Token
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
         let viewer;
@@ -187,13 +188,8 @@
             playing = true;
             document.getElementById('playBtn').textContent = '⏸';
             timer = setInterval(async () => {
-                const currentIdx = allMonthsList.findIndex(
-                    m => m.year === currentYear && m.month === currentMonth
-                );
-                if (currentIdx === -1 || currentIdx >= allMonthsList.length - 1) {
-                    stopPlay();
-                    return;
-                }
+                const currentIdx = allMonthsList.findIndex(m => m.year === currentYear && m.month === currentMonth);
+                if (currentIdx === -1 || currentIdx >= allMonthsList.length - 1) { stopPlay(); return; }
                 const next = allMonthsList[currentIdx + 1];
                 await loadRaster(next.year, next.month, true);
             }, 1000);
@@ -241,12 +237,14 @@
                 requestVertexNormals: true
             });
 
+            // ✅ 强制使用 Cesium Ion 的 TERRAIN 地形影像（山脉阴影效果）
+            const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
+                style: Cesium.IonWorldImageryStyle.TERRAIN
+            });
+
             viewer = new Cesium.Viewer('cesiumContainer', {
                 terrainProvider: terrain,
-                imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg',
-                    maximumLevel: 15
-                }),
+                imageryProvider: imageryLayer.imageryProvider,
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
@@ -263,7 +261,7 @@
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
             placeholderLayer.alpha = 1.0;
 
-            // 垂直秦岭 + 缩放
+            // 垂直秦岭 + 自动缩放
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
