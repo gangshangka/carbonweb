@@ -94,11 +94,12 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // ⚠️ 请替换为你自己的 Cesium Ion Token
+        // ⚠️ 替换为你的 Cesium Ion Token
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
         let viewer;
-        let layerA = null, layerB = null; // 两个图层交替使用
+        let placeholderLayer = null;
+        let layerA = null, layerB = null;
         let activeLayer = 'A';
         let currentYear, currentMonth;
         let availableYears = [], availableMonths = [];
@@ -128,26 +129,25 @@
             }
         }
 
-        async function createLayer(year, month) {
+        async function createHeatmapLayer(year, month) {
             const provider = new Cesium.SingleTileImageryProvider({
                 url: getImgUrl(year, month),
                 rectangle: qinlingRect
             });
             const layer = viewer.imageryLayers.addImageryProvider(provider);
-            layer.alpha = 0;
-            // 等待图片真正可用，避免闪烁
+            layer.alpha = 0.75;
             await provider.readyPromise;
             return layer;
         }
 
-        function crossfade(fromLayer, toLayer, duration = 500) {
+        function crossfade(fromLayer, toLayer) {
             if (transitionTimer) clearInterval(transitionTimer);
             const start = Date.now();
             transitionTimer = setInterval(() => {
                 const elapsed = Date.now() - start;
-                const t = Math.min(1, elapsed / duration);
-                fromLayer.alpha = 1 - t;
-                toLayer.alpha = t;
+                const t = Math.min(1, elapsed / 400);
+                fromLayer.alpha = 0.75 * (1 - t);
+                toLayer.alpha = 0.75 * t;
                 if (t >= 1) {
                     clearInterval(transitionTimer);
                     transitionTimer = null;
@@ -158,20 +158,12 @@
 
         async function loadRaster(year, month, updateSlider = true) {
             if (currentYear === year && currentMonth === month) return false;
-
-            // 新图层加载完成后再切换，消除空白闪烁
-            const newLayer = await createLayer(year, month);
+            const newLayer = await createHeatmapLayer(year, month);
             const oldLayer = activeLayer === 'A' ? layerA : layerB;
-
             if (activeLayer === 'A') layerB = newLayer; else layerA = newLayer;
             activeLayer = activeLayer === 'A' ? 'B' : 'A';
-
-            if (oldLayer) {
-                crossfade(oldLayer, newLayer, 500);
-            } else {
-                newLayer.alpha = 1;
-            }
-
+            if (oldLayer) crossfade(oldLayer, newLayer);
+            else newLayer.alpha = 0.75;
             currentYear = year;
             currentMonth = month;
             updateUI(year, month, !updateSlider);
@@ -196,10 +188,7 @@
                 if (mIdx >= availableMonths.length) {
                     mIdx = 0;
                     yIdx++;
-                    if (yIdx >= availableYears.length) {
-                        stopPlay();
-                        return;
-                    }
+                    if (yIdx >= availableYears.length) { stopPlay(); return; }
                     currentYear = availableYears[yIdx];
                 }
                 currentMonth = availableMonths[mIdx];
@@ -208,12 +197,9 @@
         }
 
         function initTimeline() {
-            // 生成所有年月列表
-            for (let y = 2012; y <= 2022; y++) {
-                for (let m = 1; m <= 12; m++) {
+            for (let y = 2012; y <= 2022; y++)
+                for (let m = 1; m <= 12; m++)
                     allMonthsList.push({ year: String(y), month: String(m) });
-                }
-            }
             availableYears = [...new Set(allMonthsList.map(m => m.year))].sort();
             availableMonths = Array.from({ length: 12 }, (_, i) => String(i + 1));
 
@@ -223,34 +209,22 @@
             availableMonths.forEach(m => mSel.appendChild(new Option(m + '月', m)));
 
             timeSlider.max = allMonthsList.length - 1;
-            timeStart.textContent = `${allMonthsList[0].year}-${allMonthsList[0].month.padStart(2, '0')}`;
-            timeEnd.textContent = `${allMonthsList[allMonthsList.length - 1].year}-${allMonthsList[allMonthsList.length - 1].month.padStart(2, '0')}`;
+            timeStart.textContent = '2012-01';
+            timeEnd.textContent = '2022-12';
 
-            // 初始停在第一个月（2012-01）
             const first = allMonthsList[0];
-            currentYear = first.year;
-            currentMonth = first.month;
-            ySel.value = currentYear;
-            mSel.value = currentMonth;
+            currentYear = first.year; currentMonth = first.month;
+            ySel.value = currentYear; mSel.value = currentMonth;
             timeSlider.value = 0;
             updateUI(currentYear, currentMonth);
 
-            ySel.onchange = async () => {
-                currentYear = ySel.value;
-                await loadRaster(currentYear, currentMonth, true);
-                stopPlay();
-            };
-            mSel.onchange = async () => {
-                currentMonth = mSel.value;
-                await loadRaster(currentYear, currentMonth, true);
-                stopPlay();
-            };
+            ySel.onchange = async () => { currentYear = ySel.value; await loadRaster(currentYear, currentMonth, true); stopPlay(); };
+            mSel.onchange = async () => { currentMonth = mSel.value; await loadRaster(currentYear, currentMonth, true); stopPlay(); };
 
             let isDragging = false;
             timeSlider.addEventListener('input', () => { isDragging = true; });
             timeSlider.addEventListener('change', async () => {
-                if (!isDragging) return;
-                isDragging = false;
+                if (!isDragging) return; isDragging = false;
                 const idx = parseInt(timeSlider.value, 10);
                 const { year, month } = allMonthsList[idx];
                 stopPlay();
@@ -259,12 +233,19 @@
         }
 
         async function initGlobe() {
-            const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({ style: Cesium.IonWorldImageryStyle.TERRAIN });
-            const terrain = await Cesium.createWorldTerrainAsync({ requestWaterMask: true, requestVertexNormals: true });
+            // 使用地形底图（TERRAIN），而不是卫星图（AERIAL）
+            const imageryProvider = Cesium.createWorldImagery({
+                style: Cesium.IonWorldImageryStyle.TERRAIN
+            });
+
+            const terrain = await Cesium.createWorldTerrainAsync({
+                requestWaterMask: true,
+                requestVertexNormals: true
+            });
 
             viewer = new Cesium.Viewer('cesiumContainer', {
                 terrainProvider: terrain,
-                imageryProvider: imageryLayer.imageryProvider,
+                imageryProvider: imageryProvider,
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
@@ -273,13 +254,20 @@
             viewer.cesiumWidget.creditContainer.style.display = 'none';
             viewer.scene.globe.enableLighting = true;
 
-            // 1. 飞到垂直秦岭
+            // 底层占位图
+            const placeholderProvider = new Cesium.SingleTileImageryProvider({
+                url: 'tif/placeholder.png',
+                rectangle: qinlingRect
+            });
+            placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
+            placeholderLayer.alpha = 1.0;
+
+            // 垂直秦岭 + 缩放
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
                 duration: 2,
                 complete: () => {
-                    // 2. 自动缩放两次，营造拉近效果
                     setTimeout(() => viewer.camera.zoomIn(50000), 200);
                     setTimeout(() => viewer.camera.zoomIn(30000), 700);
                 }
@@ -295,14 +283,11 @@
                 destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
             });
-
-            const playBtn = document.getElementById('playBtn');
-            playBtn.addEventListener('click', () => {
+            document.getElementById('playBtn').addEventListener('click', () => {
                 if (playing) stopPlay(); else startPlay();
             });
 
             initTimeline();
-            // 加载第一帧
             await loadRaster('2012', '1', true);
         }
 
