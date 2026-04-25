@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>秦岭碳汇 3D 栅格热力图</title>
+    <link rel="stylesheet" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Widgets/widgets.css" />
+    <style>
+        html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
+        body { font-family: "Helvetica Neue", Arial, sans-serif; }
+        /* 左上角当前年月标签 */
+        .current-label {
+            position: absolute; top: 12px; left: 12px; z-index: 2000;
+            background: rgba(20,20,30,0.78); backdrop-filter: blur(8px);
+            color: #fff; padding: 6px 14px; border-radius: 6px;
+            font-size: 18px; font-weight: bold; border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+        /* 左侧工具栏 */
+        .toolbar { position:absolute; left:12px; top:60px; z-index:2000; display:flex; flex-direction:column; gap:8px; }
+        .panel { background:rgba(20,20,30,0.78); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:10px; color:#ddd; width: 110px; }
+        .panel select { width: 100%; margin:4px 0; padding:4px; background:#2a2a3a; color:white; border:1px solid #555; border-radius:4px; }
+        .btn-icon { width:40px; height:40px; background:rgba(20,20,30,0.78); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.2); color:#ddd; border-radius:6px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition: 0.2s; }
+        .btn-icon:hover { background:rgba(255,255,255,0.1); color:white; }
+        .btn-icon.play { font-size:22px; }
+        /* 图例 */
+        .legend { position:absolute; right:20px; bottom:80px; z-index:2000; background:rgba(20,20,30,0.78); backdrop-filter:blur(8px); padding:12px 14px; border-radius:8px; color:#ccc; font-size:13px; border:1px solid rgba(255,255,255,0.2); width:170px; }
+        .legend .bar { height:18px; margin:6px 0; border-radius:4px; background: linear-gradient(to right, #D7191C, #FDAE61, #FFFFBF, #A6D96A, #1A9641); }
+        .legend .labels { display:flex; justify-content:space-between; font-size:11px; }
+        /* 底部时间轴 */
+        .timeline-container {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; background: rgba(20,20,30,0.72); backdrop-filter: blur(10px);
+            padding: 8px 16px; border-radius: 30px; display: flex; align-items: center;
+            gap: 12px; border: 1px solid rgba(255,255,255,0.2); color: #eee;
+            font-size: 13px; min-width: 320px;
+        }
+        .timeline-container input[type=range] { flex: 1; background: transparent; accent-color: #4fc3f7; }
+        .timeline-label { white-space: nowrap; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- 当前显示年月 -->
+    <div class="current-label" id="currentLabel">✅ 2022-12</div>
+
+    <!-- 左侧工具条 -->
+    <div class="toolbar" id="toolbar">
+        <div class="panel">
+            <div style="font-size:12px; margin-bottom:2px;">年份</div>
+            <select id="yearSelect"></select>
+            <div style="font-size:12px; margin-bottom:2px; margin-top:6px;">月份</div>
+            <select id="monthSelect"></select>
+        </div>
+        <div class="btn-icon" id="zoomInBtn" title="放大">➕</div>
+        <div class="btn-icon" id="zoomOutBtn" title="缩小">➖</div>
+        <div class="btn-icon" id="flyQinling" title="飞到秦岭（斜视）">🏔️</div>
+        <div class="btn-icon" id="flyVertical" title="垂直秦岭">⬇️</div>
+        <div class="btn-icon play" id="playBtn" title="播放/暂停">▶</div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend" id="legendPanel">
+        <div style="text-align:center; font-weight:bold;">碳汇强度</div>
+        <div class="bar"></div>
+        <div class="labels"><span>低</span><span>高</span></div>
+        <div style="margin-top:6px; font-size:11px; opacity:0.7;">单位: gC·m⁻²·month⁻¹</div>
+    </div>
+
+    <!-- 底部时间轴 -->
+    <div class="timeline-container" id="timelineContainer">
+        <span class="timeline-label" id="timeStart">2012-01</span>
+        <input type="range" id="timeSlider" min="0" max="0" value="0" step="1">
+        <span class="timeline-label" id="timeEnd">2022-12</span>
+    </div>
+
+    <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
+    <script>
+        // ⚠️ 请替换为你自己的 Cesium Ion Token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
+
+        let viewer; // 稍后初始化
+        let layerA = null, layerB = null, activeLayer = 'A';
+        let currentYear, currentMonth;
+        let availableYears = [], availableMonths = [];
+        let allMonthsList = []; // [{year, month}]
+        let timer = null, playing = false;
+        let transitionTimer = null;
+
+        const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
+
+        // UI元素
+        const currentLabel = document.getElementById('currentLabel');
+        const timeSlider = document.getElementById('timeSlider');
+        const timeStart = document.getElementById('timeStart');
+        const timeEnd = document.getElementById('timeEnd');
+
+        function getImgUrl(year, month) {
+            const mm = month.padStart(2, '0');
+            return `tif/color_nep${year}${mm}.png`;
+        }
+
+        // 更新左上角标签和滑块（不触发input事件）
+        function updateUI(year, month, fromSlider = false) {
+            const mm = month.padStart(2, '0');
+            currentLabel.textContent = `✅ ${year}-${mm}`;
+            document.getElementById('yearSelect').value = year;
+            document.getElementById('monthSelect').value = month;
+
+            // 更新滑块（如果变化不是来自滑块本身）
+            if (!fromSlider) {
+                const idx = allMonthsList.findIndex(m => m.year === year && m.month === month);
+                if (idx >= 0) {
+                    timeSlider.value = idx;
+                }
+            }
+        }
+
+        // 创建图层
+        async function createLayer(year, month) {
+            const provider = new Cesium.SingleTileImageryProvider({
+                url: getImgUrl(year, month),
+                rectangle: qinlingRect
+            });
+            const layer = viewer.imageryLayers.addImageryProvider(provider);
+            layer.alpha = 0;
+            return layer;
+        }
+
+        // 淡入淡出
+        function crossfade(fromLayer, toLayer, duration = 400) {
+            if (transitionTimer) clearInterval(transitionTimer);
+            const start = Date.now();
+            fromLayer.alpha = 1; toLayer.alpha = 0;
+            transitionTimer = setInterval(() => {
+                const elapsed = Date.now() - start;
+                const t = Math.min(1, elapsed / duration);
+                fromLayer.alpha = 1 - t;
+                toLayer.alpha = t;
+                if (t >= 1) {
+                    clearInterval(transitionTimer);
+                    transitionTimer = null;
+                    if (fromLayer.alpha <= 0) viewer.imageryLayers.remove(fromLayer, false);
+                }
+            }, 16);
+        }
+
+        // 加载指定年月（带平滑过渡）
+        async function loadRaster(year, month, updateSlider = true) {
+
+            currentYear = year;
+            currentMonth = month;
+
+            const targetLayer = activeLayer === 'A' ? layerB : layerA;
+            const oldLayer = activeLayer === 'A' ? layerA : layerB;
+
+            try {
+                if (targetLayer) viewer.imageryLayers.remove(targetLayer, false);
+                const newLayer = await createLayer(year, month);
+                if (activeLayer === 'A') layerB = newLayer; else layerA = newLayer;
+
+                if (oldLayer) {
+                    crossfade(oldLayer, newLayer, 400);
+                } else {
+                    newLayer.alpha = 1;
+                }
+                activeLayer = activeLayer === 'A' ? 'B' : 'A';
+                currentYear = year;
+                currentMonth = month;   
+                updateUI(year, month, !updateSlider); // 如果是手动拖动滑块则不更新滑块位置
+                return true;
+            } catch (e) {
+                console.error(`加载失败 ${year}-${month}:`, e);
+                return false;
+            }
+        }
+
+        // 停止播放
+        function stopPlay() {
+            if (timer) clearInterval(timer);
+            timer = null;
+            playing = false;
+            document.getElementById('playBtn').textContent = '▶';
+        }
+
+        // 开始自动播放
+        function startPlay() {
+            if (playing) return;
+            playing = true;
+            document.getElementById('playBtn').textContent = '⏸';
+            timer = setInterval(async () => {
+                let mIdx = availableMonths.indexOf(currentMonth);
+                let yIdx = availableYears.indexOf(currentYear);
+                mIdx++;
+                if (mIdx >= availableMonths.length) {
+                    mIdx = 0;
+                    yIdx++;
+                    if (yIdx >= availableYears.length) {
+                        stopPlay();
+                        return;
+                    }
+                    currentYear = availableYears[yIdx];
+                }
+                currentMonth = availableMonths[mIdx];
+                await loadRaster(currentYear, currentMonth, true);
+            }, 1500);
+        }
+
+        // 初始化时间轴和控件
+        function initTimeline() {
+            // 生成月份列表
+            for (let y = 2012; y <= 2022; y++) {
+                for (let m = 1; m <= 12; m++) {
+                    allMonthsList.push({ year: String(y), month: String(m) });
+                }
+            }
+            availableYears = [...new Set(allMonthsList.map(m => m.year))].sort();
+            availableMonths = Array.from({ length: 12 }, (_, i) => String(i + 1));
+
+            // 填充年份/月份选择器
+            const ySel = document.getElementById('yearSelect');
+            const mSel = document.getElementById('monthSelect');
+            availableYears.forEach(y => ySel.appendChild(new Option(y, y)));
+            availableMonths.forEach(m => mSel.appendChild(new Option(m + '月', m)));
+
+            // 设置滑块范围
+            timeSlider.max = allMonthsList.length - 1;
+            timeStart.textContent = `${allMonthsList[0].year}-${allMonthsList[0].month.padStart(2,'0')}`;
+            timeEnd.textContent = `${allMonthsList[allMonthsList.length-1].year}-${allMonthsList[allMonthsList.length-1].month.padStart(2,'0')}`;
+
+            // 默认加载最后一个月
+            const last = allMonthsList[allMonthsList.length - 1];
+            currentYear = last.year;
+            currentMonth = last.month;
+            ySel.value = currentYear;
+            mSel.value = currentMonth;
+            timeSlider.value = allMonthsList.length - 1;
+            updateUI(currentYear, currentMonth);
+
+            // 事件监听
+            ySel.onchange = async () => {
+                currentYear = ySel.value;
+                await loadRaster(currentYear, currentMonth, true);
+                stopPlay();
+            };
+            mSel.onchange = async () => {
+                currentMonth = mSel.value;
+                await loadRaster(currentYear, currentMonth, true);
+                stopPlay();
+            };
+
+            // 滑块拖动
+            let isDragging = false;
+            timeSlider.addEventListener('input', () => { isDragging = true; });
+            timeSlider.addEventListener('change', async () => {
+                if (!isDragging) return;
+                isDragging = false;
+                const idx = parseInt(timeSlider.value, 10);
+                const { year, month } = allMonthsList[idx];
+                stopPlay();
+                await loadRaster(year, month, false); // 不更新滑块本身
+            });
+        }
+
+        async function initGlobe() {
+         const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({ style: Cesium.IonWorldImageryStyle.TERRAIN });
+            const terrain = await Cesium.createWorldTerrainAsync({ requestWaterMask: true, requestVertexNormals: true });
+
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                terrainProvider: terrain,
+                imageryProvider: imageryLayer.imageryProvider,
+                animation: false, timeline: false, fullscreenButton: false,
+                homeButton: false, sceneModePicker: false, baseLayerPicker: false,
+                navigationHelpButton: false, geocoder: false, infoBox: false,
+                selectionIndicator: false
+            });
+            viewer.cesiumWidget.creditContainer.style.display = 'none';
+            viewer.scene.globe.enableLighting = true;
+
+            // 初始视角：斜视秦岭
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 180000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 },
+                duration: 2
+            });
+
+            // 按钮事件
+            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
+            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
+            document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 180000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 }
+            });
+            document.getElementById('flyVertical').onclick = () => viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 250000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
+            });
+
+            const playBtn = document.getElementById('playBtn');
+            playBtn.addEventListener('click', () => {
+                if (playing) stopPlay();
+                else startPlay();
+            });
+
+            initTimeline();
+            // 加载最后一个月
+            await loadRaster(currentYear, currentMonth, true);
+            // 显示工具条（去掉调试框，已默认可见）
+        }
+
+        initGlobe().catch(err => console.error(err));
+    </script>
+</body>
+</html>
