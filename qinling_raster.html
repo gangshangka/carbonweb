@@ -31,7 +31,6 @@
             border-radius: 3px; transition: width 0.3s ease;
         }
         .progress-num { font-size: 16px; opacity: 0.8; }
-        /* 左上角标签 */
         .current-label {
             position: absolute; top: 12px; left: 12px; z-index: 2000;
             background: rgba(20,20,30,0.78); backdrop-filter: blur(8px);
@@ -86,7 +85,6 @@
     </style>
 </head>
 <body>
-    <!-- 加载进度条 -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-box">
             <div class="loading-text" id="loadingText">正在加载秦岭碳汇数据</div>
@@ -127,10 +125,10 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // ⚠️ 替换为你的 Cesium Ion Token（如果线上仍然蓝色，请去 ion.cesium.com 重新生成一个）
+        // Cesium Ion Token 保留用于地形服务（1.118无需Token也可用高德底图，但保留以兼容）
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
-        // 进度条控制
+        // 进度条
         const loadingOverlay = document.getElementById('loadingOverlay');
         const progressFill = document.getElementById('progressFill');
         const progressNum = document.getElementById('progressNum');
@@ -141,7 +139,6 @@
             progressNum.textContent = percent + '%';
             if (text) loadingText.textContent = text;
         }
-
         function hideLoading() {
             loadingOverlay.style.opacity = '0';
             setTimeout(() => { loadingOverlay.style.display = 'none'; }, 400);
@@ -162,6 +159,13 @@
         const timeSlider = document.getElementById('timeSlider');
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
+
+        // ========== 高德卫星图影像提供者 ==========
+        const amapImgProvider = new Cesium.UrlTemplateImageryProvider({
+            url: 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+            subdomains: ['1', '2', '3', '4'],
+            maximumLevel: 18
+        });
 
         function getImgUrl(year, month) {
             const mm = month.padStart(2, '0');
@@ -283,21 +287,15 @@
 
         async function initGlobe() {
             setProgress(10, '正在加载地形数据');
-
             const terrain = await Cesium.createWorldTerrainAsync({
                 requestWaterMask: true,
                 requestVertexNormals: true
             });
 
-            setProgress(30, '正在加载地形底图');
-
-            const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
-                style: Cesium.IonWorldImageryStyle.TERRAIN
-            });
-
+            setProgress(40, '正在加载高德卫星影像');
             viewer = new Cesium.Viewer('cesiumContainer', {
                 terrainProvider: terrain,
-                imageryProvider: imageryLayer.imageryProvider,
+                imageryProvider: amapImgProvider,   // 关键：使用高德卫星影像
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
@@ -307,7 +305,6 @@
             viewer.scene.globe.enableLighting = true;
 
             setProgress(60, '正在加载秦岭占位图');
-
             const placeholderProvider = new Cesium.SingleTileImageryProvider({
                 url: 'tif/placeholder.png',
                 rectangle: qinlingRect
@@ -316,8 +313,6 @@
             placeholderLayer.alpha = 1.0;
 
             setProgress(80, '正在准备热力图数据');
-
-            // 垂直视角 + 缩放
             viewer.camera.flyTo({
                 destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
@@ -328,7 +323,6 @@
                 }
             });
 
-            // 按钮事件
             document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
             document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
             document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
@@ -345,10 +339,8 @@
             });
 
             initTimeline();
-
             setProgress(95, '正在加载首帧热力图');
             await loadRaster('2012', '1', true);
-
             setProgress(100, '加载完成');
             setTimeout(hideLoading, 500);
         }
