@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>秦岭碳汇 3D 遥感 (修复版)</title>
+    <link rel="stylesheet" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Widgets/widgets.css" />
+    <style>
+        html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
+        .status { position:absolute; top:10px; left:10px; z-index:3000; background:rgba(0,0,0,0.7); color:lime; padding:10px; border-radius:5px; font-family:monospace; white-space:pre-line; max-width:400px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div class="status" id="status">⚡ 初始化中...</div>
+
+    <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
+    <script>
+        // 你的最新有效 Token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
+
+        const statusEl = document.getElementById('status');
+        function log(msg) { statusEl.innerText += '\n' + msg; console.log(msg); }
+
+        async function init() {
+            try {
+                log('📦 Cesium version: ' + Cesium.VERSION);
+                log('🔑 Token 已设置');
+
+                // 影像层创建（同步）
+                const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
+                    style: Cesium.IonWorldImageryStyle.AERIAL
+                });
+                log('🛰 影像已创建 (World Imagery)');
+
+                // 地形异步创建
+                const terrain = await Cesium.createWorldTerrainAsync({
+                    requestWaterMask: true,
+                    requestVertexNormals: true
+                });
+                log('🏔 地形就绪');
+
+                log('✅ 地形和影像均就绪，创建 Viewer...');
+
+                const viewer = new Cesium.Viewer('cesiumContainer', {
+                    terrainProvider: terrain,
+                    imageryProvider: imageryLayer.imageryProvider,
+                    animation: false, timeline: false, fullscreenButton: false,
+                    homeButton: false, sceneModePicker: false, baseLayerPicker: false,
+                    navigationHelpButton: false, geocoder: false, infoBox: false,
+                    selectionIndicator: false
+                });
+
+                viewer.cesiumWidget.creditContainer.style.display = 'none';
+                viewer.scene.globe.enableLighting = true;
+
+                viewer.camera.setView({
+                    destination: Cesium.Cartesian3.fromDegrees(108, 35, 15000000),
+                    orientation: { heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+                });
+                log('🌍 地球已显示');
+                statusEl.style.display = 'none'; // 隐藏日志，纯粹地球
+
+            } catch (e) {
+                log('💥 致命错误: ' + e.message);
+                console.error(e);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

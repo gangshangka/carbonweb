@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>简化测试：地球+秦岭</title>
+    <link rel="stylesheet" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Widgets/widgets.css" />
+    <style>
+        html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- 秦岭 GeoJSON 脚本 -->
+    <script src="qinling-geojson.js"></script>
+    <!-- Cesium 运行库 -->
+    <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
+    <script>
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YmY0Y2JjYS1kZDhjLTQzMmEtYThmNy0zOWQyNmNlMmEzYWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODQ4MTN9.5IebdRrbJ2GRjaVP8WuPpK1NjOKohXG5J-dfkx86dTA';
+
+        (async function() {
+            // 检查数据就绪
+            if (!window.qinlingGeoJSON) {
+                alert('qinling-geojson.js 加载失败');
+                return;
+            }
+
+            // 完全复制测试页中成功的 Viewer 配置
+            const viewer = new Cesium.Viewer('cesiumContainer', {
+                terrainProvider: new Cesium.CesiumTerrainProvider({
+                    url: Cesium.IonResource.fromAssetId(1),
+                    requestVertexNormals: true,
+                    requestWaterMask: true
+                }),
+                imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+    url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+}),
+                animation: false,
+                timeline: false,
+                fullscreenButton: false,
+                homeButton: false,
+                sceneModePicker: false,
+                baseLayerPicker: false,
+                navigationHelpButton: false,
+                geocoder: false,
+                infoBox: false,
+                selectionIndicator: false
+            });
+
+            viewer.scene.globe.enableLighting = true;
+
+            // 视角：先全球，3秒后飞到秦岭
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(108, 35, 15000000),
+                orientation: { heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+            });
+
+            // 延迟加载秦岭边界，避免和初始视角冲突
+            setTimeout(async () => {
+                try {
+                    const dataSource = await Cesium.GeoJsonDataSource.load(window.qinlingGeoJSON, {
+                        stroke: Cesium.Color.RED,
+                        fill: Cesium.Color.GREEN.withAlpha(0.4),
+                        strokeWidth: 3
+                    });
+                    viewer.dataSources.add(dataSource);
+                    console.log('秦岭边界加载完毕');
+                } catch (e) {
+                    alert('加载秦岭失败：' + e.message);
+                }
+            }, 1000);
+        })();
+    </script>
+</body>
+</html>

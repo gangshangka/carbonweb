@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>调试：地球 + 秦岭</title>
+    <link rel="stylesheet" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Widgets/widgets.css" />
+    <style>
+        html, body, #cesiumContainer { width:100%; height:100%; margin:0; padding:0; overflow:hidden; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
+    <script>
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0YmY0Y2JjYS1kZDhjLTQzMmEtYThmNy0zOWQyNmNlMmEzYWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODQ4MTN9.5IebdRrbJ2GRjaVP8WuPpK1NjOKohXG5J-dfkx86dTA';
+
+        (async function() {
+            // 初始化 Viewer（使用 OpenStreetMap 底图）
+            const viewer = new Cesium.Viewer('cesiumContainer', {
+                terrainProvider: new Cesium.CesiumTerrainProvider({
+                    url: Cesium.IonResource.fromAssetId(1),
+                    requestVertexNormals: true,
+                    requestWaterMask: true
+                }),
+                imageryProvider: new Cesium.OpenStreetMapImageryProvider({
+                    url: 'https://tile.openstreetmap.org/'
+                }),
+                animation: false,
+                timeline: false,
+                fullscreenButton: false,
+                homeButton: false,
+                sceneModePicker: false,
+                baseLayerPicker: false,
+                navigationHelpButton: false,
+                geocoder: false,
+                infoBox: false,
+                selectionIndicator: false
+            });
+
+            viewer.cesiumWidget.creditContainer.style.display = 'none';
+            viewer.scene.globe.enableLighting = true;
+
+            // 先飞到全球视角
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(108, 35, 15000000),
+                orientation: { heading:0, pitch:Cesium.Math.toRadians(-90), roll:0 }
+            });
+
+            // 尝试加载本地 GeoJSON 并添加到地球
+            try {
+                const response = await fetch('qinling.geojson');
+                const geoJSON = await response.json();
+                console.log('GeoJSON 加载成功');
+
+                const dataSource = await Cesium.GeoJsonDataSource.load(geoJSON, {
+                    stroke: Cesium.Color.RED,
+                    fill: Cesium.Color.GREEN.withAlpha(0.3),
+                    strokeWidth: 3
+                });
+                viewer.dataSources.add(dataSource);
+                console.log('GeoJSON 已添加到地球');
+            } catch (err) {
+                console.error('加载失败：', err);
+                alert('加载秦岭数据失败：' + err.message);
+            }
+        })();
+    </script>
+</body>
+</html>
