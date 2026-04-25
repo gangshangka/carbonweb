@@ -126,7 +126,6 @@
     <script>
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
-        // 进度条
         const loadingOverlay = document.getElementById('loadingOverlay');
         const progressFill = document.getElementById('progressFill');
         const progressNum = document.getElementById('progressNum');
@@ -158,11 +157,11 @@
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
 
-       function getImgUrl(year, month) {
-    const mm = month.padStart(2, '0');
-    // 使用 jsDelivr 加速 GitHub 仓库文件（国内快）
-    return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
-}
+        // 使用 jsDelivr CDN 加速图片加载
+        function getImgUrl(year, month) {
+            const mm = month.padStart(2, '0');
+            return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
+        }
 
         function updateUI(year, month, fromSlider = false) {
             const mm = month.padStart(2, '0');
@@ -285,7 +284,6 @@
             });
 
             setProgress(30, '正在加载地形底图');
-            // 🏔️ 关键：使用 Ion TERRAIN 地形样式（山脉阴影）
             const imageryLayer = Cesium.ImageryLayer.fromWorldImagery({
                 style: Cesium.IonWorldImageryStyle.TERRAIN
             });
@@ -303,7 +301,7 @@
 
             setProgress(60, '正在加载秦岭占位图');
             const placeholderProvider = new Cesium.SingleTileImageryProvider({
-                url: 'tif/placeholder.png',
+                url: 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/placeholder.png',
                 rectangle: qinlingRect
             });
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
@@ -336,8 +334,10 @@
             });
 
             initTimeline();
-            setProgress(95, '正在加载首帧热力图');
+
+            setProgress(95, '即将完成...');
             await loadRaster('2012', '1', true);
+            await new Promise(resolve => setTimeout(resolve, 1000));  // 额外缓冲
             setProgress(100, '加载完成');
             setTimeout(hideLoading, 500);
         }
