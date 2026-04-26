@@ -184,8 +184,7 @@
             return layer;
         }
 
-        // A/B 双图层交叉淡入（参考微信小程序 index.js 的 _crossFadeToNextLayer 模式）
-        // 老图保持完全可见直到新图就绪，然后快速交叉淡入（300ms，对应 CSS transition 0.3s）
+        // A/B 双图层交叉淡入（参考微信小程序 _crossFadeToNextLayer）
         function crossfade(fromLayer, toLayer, duration = 300) {
             if (transitionTimer) clearInterval(transitionTimer);
             const start = Date.now();
@@ -202,17 +201,45 @@
             }, 16);
         }
 
+        // 仅淡出旧图层（每年1月无数据时使用，露出占位底图）
+        function fadeOutLayer(layer, duration = 300) {
+            if (transitionTimer) clearInterval(transitionTimer);
+            const startAlpha = layer.alpha;
+            const start = Date.now();
+            transitionTimer = setInterval(() => {
+                const t = Math.min(1, (Date.now() - start) / duration);
+                layer.alpha = startAlpha * (1 - t);
+                if (t >= 1) {
+                    clearInterval(transitionTimer);
+                    transitionTimer = null;
+                    viewer.imageryLayers.remove(layer, false);
+                }
+            }, 16);
+        }
+
         async function loadRaster(year, month, updateSlider = true) {
             if (currentYear === year && currentMonth === month) return false;
-            const newLayer = await createHeatmapLayer(year, month);
+
+            // 每年1月无数据，跳过热力图加载（参考微信小程序 useLocalPlaceholder）
+            const isJanuary = (month === '1');
+            const newLayer = isJanuary ? null : await createHeatmapLayer(year, month);
             const oldLayer = activeLayer === 'A' ? layerA : layerB;
 
-            if (activeLayer === 'A') layerB = newLayer; else layerA = newLayer;
-            activeLayer = activeLayer === 'A' ? 'B' : 'A';
+            if (newLayer) {
+                if (activeLayer === 'A') layerB = newLayer; else layerA = newLayer;
+                activeLayer = activeLayer === 'A' ? 'B' : 'A';
+            } else {
+                // 1月：清除活跃图层标记，只靠占位底图显示
+                activeLayer = '';
+            }
 
             if (oldLayer) {
-                crossfade(oldLayer, newLayer);
-            } else {
+                if (newLayer) {
+                    crossfade(oldLayer, newLayer);
+                } else {
+                    fadeOutLayer(oldLayer); // 1月：淡出旧热力图，露出占位底图
+                }
+            } else if (newLayer) {
                 // 首帧渐显（参考微信小程序 onLayerALoad 首次淡入）
                 const fadeInStart = Date.now();
                 const fadeTimer = setInterval(() => {
@@ -321,7 +348,8 @@
         rectangle: qinlingRect
 });
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
-            placeholderLayer.alpha = 0;
+            // 占位图始终作为底图层存在（参考微信小程序 placeholderImageUrl），填充切换缝隙
+            placeholderLayer.alpha = 0.2;
 
             setProgress(80, '正在准备热力图数据');
             viewer.camera.flyTo({
