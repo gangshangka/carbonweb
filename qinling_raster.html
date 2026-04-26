@@ -107,6 +107,7 @@
         <div class="btn-icon" id="flyQinling" title="斜视秦岭">🏔️</div>
         <div class="btn-icon" id="flyVertical" title="垂直秦岭">⬇️</div>
         <div class="btn-icon play" id="playBtn" title="播放/暂停" style="pointer-events:none;opacity:0.4;">▶</div>
+        <div class="btn-icon" id="speedBtn" title="播放速度" style="pointer-events:none;opacity:0.4;">1x</div>
     </div>
 
     <div class="legend" id="legendPanel">
@@ -150,6 +151,7 @@
         let allMonthsList = [];
         let timer = null, playing = false;
         let transitionTimer = null;
+        let playSpeed = 500; // 默认 1x (500ms/帧)
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -288,7 +290,7 @@
             preloadNext(next.year, next.month, 3);
             await loadRaster(next.year, next.month, true);
             if (!playing) return;
-            timer = setTimeout(playLoop, 500);
+            timer = setTimeout(playLoop, playSpeed);
         }
 
         function startPlay() {
@@ -393,6 +395,20 @@
                 if (playing) stopPlay(); else startPlay();
             });
 
+            // 播放速度切换：1x → 2x → 3x → 0.5x → 1x
+            const speeds = [
+                { label: '1x', ms: 500 },
+                { label: '2x', ms: 250 },
+                { label: '3x', ms: 167 },
+                { label: '0.5x', ms: 1000 }
+            ];
+            let speedIdx = 0;
+            document.getElementById('speedBtn').addEventListener('click', () => {
+                speedIdx = (speedIdx + 1) % speeds.length;
+                playSpeed = speeds[speedIdx].ms;
+                document.getElementById('speedBtn').textContent = speeds[speedIdx].label;
+            });
+
             initTimeline();
 
       setProgress(92, '正在验证数据缓存...');
@@ -407,6 +423,9 @@ function enableControls() {
     const playBtn = document.getElementById('playBtn');
     playBtn.style.pointerEvents = 'auto';
     playBtn.style.opacity = '1';
+    const speedBtn = document.getElementById('speedBtn');
+    speedBtn.style.pointerEvents = 'auto';
+    speedBtn.style.opacity = '1';
 }
 
 function buildImageList() {
