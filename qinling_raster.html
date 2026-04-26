@@ -261,6 +261,23 @@
             document.getElementById('playBtn').textContent = '▶';
         }
 
+        // 预加载接下来 count 个月的图片到浏览器缓存
+        function preloadNext(year, month, count) {
+            let yIdx = availableYears.indexOf(year);
+            let mIdx = availableMonths.indexOf(month);
+            if (yIdx === -1 || mIdx === -1) return;
+            for (let i = 0; i < count; i++) {
+                mIdx++;
+                if (mIdx >= availableMonths.length) {
+                    mIdx = 0;
+                    yIdx++;
+                    if (yIdx >= availableYears.length) break;
+                }
+                const img = new Image();
+                img.src = getImgUrl(availableYears[yIdx], availableMonths[mIdx]);
+            }
+        }
+
         // 模仿微信小程序 _startAutoPlayWithWait / _autoPlayNextWithWait 模式
         // load → crossfade → hold 500ms → next（保证每张图展示时长）
         async function playLoop() {
@@ -271,7 +288,6 @@
             preloadNext(next.year, next.month, 3);
             await loadRaster(next.year, next.month, true);
             if (!playing) return;
-            // 保证展示时长后再加载下一张（对应 autoPlayDisplayTime: 504）
             timer = setTimeout(playLoop, 500);
         }
 
@@ -470,21 +486,6 @@ await verifyAndPreloadImages();
 enableControls();
 // --- End image-ready guard ---
 
-// ✨ 预加载接下来的 6 个月，让播放瞬间加载
-function preloadNext(year, month, count) {
-    let yIdx = availableYears.indexOf(year);
-    let mIdx = availableMonths.indexOf(month);
-    for (let i = 0; i < count; i++) {
-        mIdx++;
-        if (mIdx >= availableMonths.length) {
-            mIdx = 0;
-            yIdx++;
-            if (yIdx >= availableYears.length) break;
-        }
-        const img = new Image();
-        img.src = getImgUrl(availableYears[yIdx], availableMonths[mIdx]);
-    }
-}
 preloadNext('2012', '7', 12);
 
 setProgress(100, '加载完成');
