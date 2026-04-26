@@ -159,10 +159,9 @@
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
 
-        // 使用 jsDelivr CDN 加速图片加载
         function getImgUrl(year, month) {
             const mm = month.padStart(2, '0');
-            return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
+            return IMG_BASE + 'color_nep' + year + mm + '.png';
         }
         function updateUI(year, month, fromSlider = false) {
             const mm = month.padStart(2, '0');
@@ -416,7 +415,10 @@ await loadRaster('2012', '7', true);
 
 // --- Image-ready guard: ensure heatmaps are cached before enabling controls ---
 const IMAGE_READY_KEY = 'carbonweb_loaded';
-const CDN_BASE = 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/';
+var IMG_BASE = (function() {
+    var p = location.pathname.replace(/\/[^/]*$/, '/');
+    return location.origin + p + 'tif/';
+})();
 
 function enableControls() {
     timeSlider.disabled = false;
@@ -474,7 +476,7 @@ async function verifyAndPreloadImages() {
                 const img = new Image();
                 img.onload = function() { done++; if (done >= n) resolve(); };
                 img.onerror = function() { done++; if (done >= n) resolve(); };
-                img.src = CDN_BASE + list[i];
+                img.src = IMG_BASE + list[i];
             }
         });
     }
@@ -493,7 +495,7 @@ function loadRemainingInBackground() {
         const end = Math.min(idx + 6, TOTAL);
         for (let i = idx; i < end; i++) {
             const img = new Image();
-            img.src = CDN_BASE + allImages[i];
+            img.src = IMG_BASE + allImages[i];
         }
         idx = end;
         setTimeout(nextBatch, 150);

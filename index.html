@@ -165,7 +165,7 @@
         var stageText = document.getElementById('stageText');
 
         // 只预加载首24张（前2年），约10MB，其余由主页面后台渐进加载
-        var cdnBase = 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/';
+        var cdnBase = (function() { var p = location.pathname.replace(/\/[^/]*$/, '/'); return location.origin + p + 'tif/'; })();
         var imageFiles = [];
         for (var y = 2012; y <= 2022; y++) {
             for (var m = 1; m <= 12; m++) {
