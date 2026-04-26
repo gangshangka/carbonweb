@@ -125,7 +125,44 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
+        // --- WebGL2 能力检测（手机 GPU 兼容性门禁） ---
+        (function() {
+            var ok = false;
+            try {
+                var c = document.createElement('canvas');
+                var gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
+                if (gl) {
+                    var vs = gl.createShader(gl.VERTEX_SHADER);
+                    var fs = gl.createShader(gl.FRAGMENT_SHADER);
+                    if (vs && fs) {
+                        gl.shaderSource(vs, 'void main(){gl_Position=vec4(0,0,0,1);}');
+                        gl.compileShader(vs);
+                        if (gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+                            gl.shaderSource(fs, '#version 300 es\nprecision highp float;out vec4 o;void main(){o=vec4(1);}');
+                            gl.compileShader(fs);
+                            if (gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+                                var ext = gl.getExtension('OES_texture_float');
+                                ok = !!ext;
+                            }
+                        }
+                        gl.deleteShader(vs); gl.deleteShader(fs);
+                    }
+                    var lose = gl.getExtension('WEBGL_lose_context');
+                    if (lose) lose.loseContext();
+                }
+            } catch(e) {}
+            if (!ok) {
+                document.getElementById('loadingText').textContent = '您的设备不支持 WebGL2 或 GPU 驱动不兼容';
+                document.getElementById('progressNum').textContent = '请使用桌面浏览器或更新手机系统后重试';
+                document.getElementById('progressFill').style.width = '100%';
+                document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #e57373, #ef5350)';
+                throw new Error('WebGL2 not supported');
+            }
+        })();
+
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
+
+        const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
         const loadingOverlay = document.getElementById('loadingOverlay');
         const progressFill = document.getElementById('progressFill');
@@ -356,7 +393,12 @@
                 animation: false, timeline: false, fullscreenButton: false,
                 homeButton: false, sceneModePicker: false, baseLayerPicker: false,
                 navigationHelpButton: false, geocoder: false, infoBox: false,
-                selectionIndicator: false
+                selectionIndicator: false,
+                // 移动端降配：减少 GPU 压力和 shader 编译负担
+                resolutionScale: isMobile ? 0.5 : 1.0,
+                requestRenderMode: true,
+                maximumRenderTimeChange: Infinity,
+                msaaSamples: isMobile ? 1 : 4
             });
             viewer.cesiumWidget.creditContainer.style.display = 'none';
             viewer.scene.globe.enableLighting = true;
@@ -510,11 +552,22 @@ setProgress(100, '加载完成');
 setTimeout(hideLoading, 400);
         }
 
+        // 兜底：捕获 Cesium WebGL shader 编译等运行时错误
+        window.addEventListener('error', function(e) {
+            var msg = e.message || '';
+            if (msg.indexOf('shaderSource') !== -1 || msg.indexOf('WebGLShader') !== -1 || msg.indexOf('WebGL') !== -1) {
+                e.preventDefault();
+                setProgress(100, 'GPU 渲染失败，您的设备可能不支持此页面');
+                loadingOverlay.style.opacity = '0';
+                setTimeout(function() { loadingOverlay.style.display = 'none'; }, 400);
+                if (viewer) { try { viewer.destroy(); } catch(ex) {} }
+            }
+        });
+
         initGlobe().catch(err => {
             console.error(err);
             setProgress(100, '加载失败，请刷新重试');
             setTimeout(hideLoading, 2000);
-            
         });
     </script>
 </body>
