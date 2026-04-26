@@ -106,7 +106,7 @@
         <div class="btn-icon" id="zoomOutBtn" title="缩小">➖</div>
         <div class="btn-icon" id="flyQinling" title="斜视秦岭">🏔️</div>
         <div class="btn-icon" id="flyVertical" title="垂直秦岭">⬇️</div>
-        <div class="btn-icon play" id="playBtn" title="播放/暂停">▶</div>
+        <div class="btn-icon play" id="playBtn" title="播放/暂停" style="pointer-events:none;opacity:0.4;">▶</div>
     </div>
 
     <div class="legend" id="legendPanel">
@@ -118,7 +118,7 @@
 
     <div class="timeline-container" id="timelineContainer">
         <span class="timeline-label" id="timeStart">2012-01</span>
-        <input type="range" id="timeSlider" min="0" max="0" value="0" step="1">
+        <input type="range" id="timeSlider" min="0" max="0" value="0" step="1" disabled>
         <span class="timeline-label" id="timeEnd">2022-12</span>
     </div>
 
@@ -159,9 +159,8 @@
 
         // 使用 jsDelivr CDN 加速图片加载
         function getImgUrl(year, month) {
-        const mm = month.padStart(2, '0');
-        // 直接使用 GitHub raw 链接，不走 CDN
-        return `https://raw.githubusercontent.com/gangshangka/carbonweb/main/tif/color_nep${year}${mm}.png`;
+            const mm = month.padStart(2, '0');
+            return `https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/color_nep${year}${mm}.png`;
         }
         function updateUI(year, month, fromSlider = false) {
             const mm = month.padStart(2, '0');
@@ -185,14 +184,16 @@
             return layer;
         }
 
+        // A/B 双图层交叉淡入（参考微信小程序 index.js 的 _crossFadeToNextLayer 模式）
+        // 老图保持完全可见直到新图就绪，然后快速交叉淡入（300ms，对应 CSS transition 0.3s）
         function crossfade(fromLayer, toLayer, duration = 300) {
             if (transitionTimer) clearInterval(transitionTimer);
             const start = Date.now();
             transitionTimer = setInterval(() => {
                 const elapsed = Date.now() - start;
                 const t = Math.min(1, elapsed / duration);
-                fromLayer.alpha = 0.7 * (1 - t);
-                toLayer.alpha = 0.7 * t;
+                fromLayer.alpha = 0.8 * (1 - t);
+                toLayer.alpha = 0.8 * t;
                 if (t >= 1) {
                     clearInterval(transitionTimer);
                     transitionTimer = null;
@@ -212,7 +213,7 @@
             if (oldLayer) {
                 crossfade(oldLayer, newLayer);
             } else {
-                newLayer.alpha = 0.7;
+                newLayer.alpha = 0.8;
             }
 
             currentYear = year;
@@ -238,6 +239,8 @@
                 const next = allMonthsList[currentIdx + 1];
                 await loadRaster(next.year, next.month, true);
             }, 1000);
+            // 在 loadRaster 调用之后添加
+            preloadNext(currentYear, currentMonth, 3);
         }
 
         function initTimeline() {
@@ -256,10 +259,10 @@
             timeStart.textContent = '2012-01';
             timeEnd.textContent = '2022-12';
 
-            const first = allMonthsList[0];
+            const first = allMonthsList[6]; // 2012-07 (夏季数据更有代表性)
             currentYear = first.year; currentMonth = first.month;
             ySel.value = currentYear; mSel.value = currentMonth;
-            timeSlider.value = 0;
+            timeSlider.value = 6;
             updateUI(currentYear, currentMonth);
 
             ySel.onchange = async () => { currentYear = ySel.value; await loadRaster(currentYear, currentMonth, true); stopPlay(); };
@@ -302,10 +305,10 @@
             setProgress(60, '正在加载秦岭占位图');
             const placeholderProvider = new Cesium.SingleTileImageryProvider({
             url: 'tif/placeholder.png',
-            rectangle: qinlingRect
+        rectangle: qinlingRect
 });
             placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider);
-            placeholderLayer.alpha = 1.0;
+            placeholderLayer.alpha = 0;
 
             setProgress(80, '正在准备热力图数据');
             viewer.camera.flyTo({
@@ -335,17 +338,100 @@
 
             initTimeline();
 
-            setProgress(95, '即将完成...');
-            await loadRaster('2012', '1', true);
-            await new Promise(resolve => setTimeout(resolve, 1000));  // 额外缓冲
-            setProgress(100, '加载完成');
-            setTimeout(hideLoading, 500);
+      setProgress(92, '正在验证数据缓存...');
+await loadRaster('2012', '7', true);
+
+// --- Image-ready guard: ensure heatmaps are cached before enabling controls ---
+const IMAGE_READY_KEY = 'carbonweb_loaded';
+const CDN_BASE = 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/';
+
+function enableControls() {
+    timeSlider.disabled = false;
+    const playBtn = document.getElementById('playBtn');
+    playBtn.style.pointerEvents = 'auto';
+    playBtn.style.opacity = '1';
+}
+
+function buildImageList() {
+    const list = [];
+    for (let y = 2012; y <= 2022; y++) {
+        for (let m = 1; m <= 12; m++) {
+            list.push('color_nep' + y + (m < 10 ? '0' + m : m) + '.png');
+        }
+    }
+    return list;
+}
+
+async function verifyAndPreloadImages() {
+    // Check if loading page already preloaded everything
+    try {
+        const ts = localStorage.getItem(IMAGE_READY_KEY);
+        if (ts && (Date.now() - parseInt(ts, 10)) < 7200000) {
+            // Flag is fresh — images should be in browser cache
+            enableControls();
+            return;
+        }
+    } catch(e) {}
+
+    // Flag missing or stale — preload images now
+    setProgress(94, '正在预加载热力图 (0/132)...');
+    const allImages = buildImageList();
+    const TOTAL = allImages.length;
+    let loaded = 0;
+
+    function loadBatch(start) {
+        return new Promise(function(resolve) {
+            const end = Math.min(start + 6, TOTAL);
+            let batchLoaded = 0;
+            const batchSize = end - start;
+            for (let i = start; i < end; i++) {
+                const img = new Image();
+                img.onload = function() { batchLoaded++; if (batchLoaded >= batchSize) resolve(); };
+                img.onerror = function() { batchLoaded++; if (batchLoaded >= batchSize) resolve(); };
+                img.src = CDN_BASE + allImages[i];
+            }
+        });
+    }
+
+    for (let i = 0; i < TOTAL; i += 6) {
+        await loadBatch(i);
+        loaded = Math.min(TOTAL, i + 6);
+        setProgress(94 + Math.round(loaded / TOTAL * 4), '正在预加载热力图 (' + loaded + '/' + TOTAL + ')...');
+    }
+
+    try { localStorage.setItem(IMAGE_READY_KEY, Date.now().toString()); } catch(e) {}
+}
+
+await verifyAndPreloadImages();
+enableControls();
+// --- End image-ready guard ---
+
+// ✨ 预加载接下来的 6 个月，让播放瞬间加载
+function preloadNext(year, month, count) {
+    let yIdx = availableYears.indexOf(year);
+    let mIdx = availableMonths.indexOf(month);
+    for (let i = 0; i < count; i++) {
+        mIdx++;
+        if (mIdx >= availableMonths.length) {
+            mIdx = 0;
+            yIdx++;
+            if (yIdx >= availableYears.length) break;
+        }
+        const img = new Image();
+        img.src = getImgUrl(availableYears[yIdx], availableMonths[mIdx]);
+    }
+}
+preloadNext('2012', '7', 12);
+
+setProgress(100, '加载完成');
+setTimeout(hideLoading, 400);
         }
 
         initGlobe().catch(err => {
             console.error(err);
             setProgress(100, '加载失败，请刷新重试');
             setTimeout(hideLoading, 2000);
+            
         });
     </script>
 </body>

@@ -1,11 +1,267 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=qinling_raster.html">
-    <title>秦岭碳汇 3D 热力图</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>秦岭碳汇 3D 时空数据平台</title>
+    <meta name="description" content="秦岭碳汇时空监测平台 - 3D可视化碳汇数据">
+    <link rel="preload" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js" as="script">
+    <link rel="preload" href="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Widgets/widgets.css" as="style">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            background: #080c12;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Background layers */
+        .bg-gradient {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
+            background: linear-gradient(165deg, #0a1628 0%, #0d1f1a 35%, #0f1a1f 65%, #080c12 100%);
+        }
+        .bg-image {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+            background: url('tif/placeholder.png') center/cover no-repeat;
+            opacity: 0.1;
+            filter: blur(2px) brightness(0.7);
+        }
+        .bg-vignette {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2;
+            background: radial-gradient(ellipse at 50% 35%, rgba(30,70,40,0.25) 0%, transparent 55%),
+                        radial-gradient(ellipse at 50% 75%, rgba(20,50,70,0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 50% 50%, transparent 60%, rgba(0,0,0,0.4) 100%);
+        }
+
+        /* Main content */
+        .container {
+            position: relative; z-index: 10;
+            text-align: center; color: #dce6f0;
+            padding: 24px; width: 90%; max-width: 480px;
+        }
+
+        .brand-icon {
+            width: 56px; height: 56px; margin: 0 auto 20px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(100,180,130,0.25), rgba(80,160,200,0.25));
+            border: 1px solid rgba(130,190,160,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .title {
+            font-size: clamp(20px, 5vw, 30px);
+            font-weight: 700;
+            letter-spacing: 3px;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, #a0d8b0, #78c8e8, #a0d8b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.4;
+        }
+
+        .subtitle {
+            font-size: clamp(11px, 2.2vw, 13px);
+            color: rgba(170,195,200,0.5);
+            letter-spacing: 5px;
+            margin-bottom: 48px;
+        }
+
+        /* Pulsing dots */
+        .dots-row {
+            display: flex; justify-content: center; gap: 14px;
+            margin-bottom: 36px;
+        }
+        .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: rgba(120,190,160,0.5);
+            animation: dotPulse 2s ease-in-out infinite;
+        }
+        .dot:nth-child(2) { animation-delay: 0.25s; }
+        .dot:nth-child(3) { animation-delay: 0.5s; }
+        .dot:nth-child(4) { animation-delay: 0.75s; }
+        .dot:nth-child(5) { animation-delay: 1.0s; }
+
+        @keyframes dotPulse {
+            0%, 100% { opacity: 0.25; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.6); }
+        }
+
+        /* Progress bar */
+        .progress-outer {
+            width: 100%; height: 3px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px; overflow: hidden;
+            margin-bottom: 14px;
+        }
+        .progress-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, #4fc3f7, #66bb6a, #a5d6a7);
+            border-radius: 2px;
+            transition: width 0.3s ease-out;
+            box-shadow: 0 0 14px rgba(79,195,247,0.35);
+        }
+
+        .progress-num {
+            font-size: 40px; font-weight: 200;
+            letter-spacing: 2px;
+            color: rgba(210,225,220,0.88);
+            margin-bottom: 8px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stage-text {
+            font-size: 13px;
+            color: rgba(165,190,185,0.5);
+            letter-spacing: 2px;
+            min-height: 20px;
+        }
+
+        .footer-text {
+            position: fixed; bottom: 28px; z-index: 10;
+            font-size: 11px; color: rgba(255,255,255,0.15);
+            letter-spacing: 1px;
+        }
+    </style>
 </head>
 <body>
-    <p>页面跳转中...</p>
+    <div class="bg-gradient"></div>
+    <div class="bg-image"></div>
+    <div class="bg-vignette"></div>
+
+    <div class="container" id="mainContainer">
+        <div class="brand-icon">🌲</div>
+        <div class="title">秦岭碳汇 3D 时空数据平台</div>
+        <div class="subtitle">QINLING CARBON SINK MONITORING</div>
+
+        <div class="dots-row">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            <div class="dot"></div><div class="dot"></div>
+        </div>
+
+        <div class="progress-outer">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-num" id="progressNum">0%</div>
+        <div class="stage-text" id="stageText">正在初始化地图引擎...</div>
+    </div>
+
+    <div class="footer-text">秦岭碳汇监测平台</div>
+
+    <script>
+    (function() {
+        var progressFill = document.getElementById('progressFill');
+        var progressNum = document.getElementById('progressNum');
+        var stageText = document.getElementById('stageText');
+
+        // Build the full list of 132 heatmap images (2012-2022, months 01-12)
+        var cdnBase = 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/';
+        var imageFiles = [];
+        for (var y = 2012; y <= 2022; y++) {
+            for (var m = 1; m <= 12; m++) {
+                var mm = m < 10 ? '0' + m : '' + m;
+                imageFiles.push('color_nep' + y + mm + '.png');
+            }
+        }
+        var TOTAL = imageFiles.length; // 132
+
+        var loadedCount = 0;
+        var allDone = false;
+        var redirecting = false;
+        var startTime = Date.now();
+        var MIN_DISPLAY_MS = 5000; // minimum 5 seconds to show the loading page
+
+        // Batch loading: 6 concurrent (browser's per-domain connection limit)
+        var BATCH_SIZE = 6;
+        var nextIdx = 0;
+
+        function onImageLoad() {
+            loadedCount++;
+        }
+        function onImageError() {
+            loadedCount++; // count errors too so we never get stuck
+        }
+
+        function loadBatch() {
+            if (allDone) return;
+            var batchEnd = Math.min(nextIdx + BATCH_SIZE, TOTAL);
+            for (var i = nextIdx; i < batchEnd; i++) {
+                var img = new Image();
+                img.onload = onImageLoad;
+                img.onerror = onImageError;
+                img.src = cdnBase + imageFiles[i];
+            }
+            nextIdx = batchEnd;
+            if (nextIdx < TOTAL) {
+                // Schedule next batch after a short breather
+                setTimeout(loadBatch, 80);
+            }
+        }
+
+        function getStageText(pct, loaded) {
+            if (pct < 10) return '正在初始化地图引擎...';
+            if (loaded < TOTAL) return '正在预加载热力图 (' + loaded + '/' + TOTAL + ')...';
+            if (pct < 100) return '即将完成...';
+            return '加载完成，正在进入平台...';
+        }
+
+        function tick() {
+            if (redirecting) return;
+
+            var realPct = Math.round(loadedCount / TOTAL * 100);
+            var elapsed = Date.now() - startTime;
+            // Timer-based floor: slowly rises to 60% over MIN_DISPLAY_MS, prevents looking stuck
+            var timerFloor = Math.min(60, Math.round(elapsed / MIN_DISPLAY_MS * 60));
+            var displayPct = Math.max(timerFloor, realPct);
+            // Clamp at 99 until truly done
+            if (!allDone) displayPct = Math.min(99, displayPct);
+
+            progressFill.style.width = displayPct + '%';
+            progressNum.textContent = displayPct + '%';
+            stageText.textContent = getStageText(displayPct, loadedCount);
+
+            // All images loaded AND minimum display time passed
+            if (loadedCount >= TOTAL && elapsed >= MIN_DISPLAY_MS) {
+                allDone = true;
+                redirecting = true;
+
+                // Save flag so main page knows images are cached
+                try {
+                    localStorage.setItem('carbonweb_loaded', Date.now().toString());
+                } catch(e) {}
+
+                progressFill.style.width = '100%';
+                progressNum.textContent = '100%';
+                stageText.textContent = '加载完成，正在进入平台...';
+
+                setTimeout(function() {
+                    document.body.style.transition = 'opacity 0.5s ease';
+                    document.body.style.opacity = '0';
+                }, 400);
+
+                setTimeout(function() {
+                    window.location.href = 'qinling_raster.html';
+                }, 900);
+                return;
+            }
+
+            requestAnimationFrame(tick);
+        }
+
+        // Kick off preloading and UI loop simultaneously
+        loadBatch();
+        requestAnimationFrame(tick);
+    })();
+    </script>
 </body>
 </html>
