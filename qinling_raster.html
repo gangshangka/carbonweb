@@ -132,27 +132,15 @@
                 var c = document.createElement('canvas');
                 var gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
                 if (gl) {
-                    var vs = gl.createShader(gl.VERTEX_SHADER);
-                    var fs = gl.createShader(gl.FRAGMENT_SHADER);
-                    if (vs && fs) {
-                        gl.shaderSource(vs, 'void main(){gl_Position=vec4(0,0,0,1);}');
-                        gl.compileShader(vs);
-                        if (gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-                            gl.shaderSource(fs, '#version 300 es\nprecision highp float;out vec4 o;void main(){o=vec4(1);}');
-                            gl.compileShader(fs);
-                            if (gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-                                var ext = gl.getExtension('OES_texture_float');
-                                ok = !!ext;
-                            }
-                        }
-                        gl.deleteShader(vs); gl.deleteShader(fs);
-                    }
+                    // 只验证 context 创建成功即可，不要求特定扩展
+                    // Cesium 内部会自行降级缺失的扩展
+                    ok = true;
                     var lose = gl.getExtension('WEBGL_lose_context');
                     if (lose) lose.loseContext();
                 }
             } catch(e) {}
             if (!ok) {
-                document.getElementById('loadingText').textContent = '您的设备不支持 WebGL2 或 GPU 驱动不兼容';
+                document.getElementById('loadingText').textContent = '您的设备不支持 WebGL2';
                 document.getElementById('progressNum').textContent = '请使用桌面浏览器或更新手机系统后重试';
                 document.getElementById('progressFill').style.width = '100%';
                 document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #e57373, #ef5350)';
