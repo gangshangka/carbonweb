@@ -159,6 +159,8 @@
         const timeStart = document.getElementById('timeStart');
         const timeEnd = document.getElementById('timeEnd');
 
+        var IMG_BASE = (function() { var p = location.pathname.replace(/\/[^/]*$/, '/'); return location.origin + p + 'tif/'; })();
+
         function getImgUrl(year, month) {
             const mm = month.padStart(2, '0');
             return IMG_BASE + 'color_nep' + year + mm + '.png';
@@ -415,11 +417,6 @@ await loadRaster('2012', '7', true);
 
 // --- Image-ready guard: ensure heatmaps are cached before enabling controls ---
 const IMAGE_READY_KEY = 'carbonweb_loaded';
-var IMG_BASE = (function() {
-    var p = location.pathname.replace(/\/[^/]*$/, '/');
-    return location.origin + p + 'tif/';
-})();
-
 function enableControls() {
     timeSlider.disabled = false;
     const playBtn = document.getElementById('playBtn');
