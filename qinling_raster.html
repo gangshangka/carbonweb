@@ -213,7 +213,13 @@
             if (oldLayer) {
                 crossfade(oldLayer, newLayer);
             } else {
-                newLayer.alpha = 0.8;
+                // 首帧渐显（参考微信小程序 onLayerALoad 首次淡入）
+                const fadeInStart = Date.now();
+                const fadeTimer = setInterval(() => {
+                    const t = Math.min(1, (Date.now() - fadeInStart) / 300);
+                    newLayer.alpha = 0.8 * t;
+                    if (t >= 1) clearInterval(fadeTimer);
+                }, 16);
             }
 
             currentYear = year;
@@ -223,24 +229,31 @@
         }
 
         function stopPlay() {
-            if (timer) clearInterval(timer);
-            timer = null;
+            if (timer) { clearTimeout(timer); timer = null; }
             playing = false;
             document.getElementById('playBtn').textContent = '▶';
+        }
+
+        // 模仿微信小程序 _startAutoPlayWithWait / _autoPlayNextWithWait 模式
+        // load → crossfade → hold 500ms → next（保证每张图展示时长）
+        async function playLoop() {
+            if (!playing) return;
+            const currentIdx = allMonthsList.findIndex(m => m.year === currentYear && m.month === currentMonth);
+            if (currentIdx === -1 || currentIdx >= allMonthsList.length - 1) { stopPlay(); return; }
+            const next = allMonthsList[currentIdx + 1];
+            preloadNext(next.year, next.month, 3);
+            await loadRaster(next.year, next.month, true);
+            if (!playing) return;
+            // 保证展示时长后再加载下一张（对应 autoPlayDisplayTime: 504）
+            timer = setTimeout(playLoop, 500);
         }
 
         function startPlay() {
             if (playing) return;
             playing = true;
             document.getElementById('playBtn').textContent = '⏸';
-            timer = setInterval(async () => {
-                const currentIdx = allMonthsList.findIndex(m => m.year === currentYear && m.month === currentMonth);
-                if (currentIdx === -1 || currentIdx >= allMonthsList.length - 1) { stopPlay(); return; }
-                const next = allMonthsList[currentIdx + 1];
-                await loadRaster(next.year, next.month, true);
-            }, 1000);
-            // 在 loadRaster 调用之后添加
             preloadNext(currentYear, currentMonth, 3);
+            playLoop();
         }
 
         function initTimeline() {
