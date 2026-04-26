@@ -363,43 +363,66 @@ function buildImageList() {
 }
 
 async function verifyAndPreloadImages() {
-    // Check if loading page already preloaded everything
+    // 检查加载页是否已预加载了首24张
     try {
         const ts = localStorage.getItem(IMAGE_READY_KEY);
         if (ts && (Date.now() - parseInt(ts, 10)) < 7200000) {
-            // Flag is fresh — images should be in browser cache
-            enableControls();
+            // 后台加载剩余图片（不阻塞），enableControls 由外层统一调用
+            loadRemainingInBackground();
             return;
         }
     } catch(e) {}
 
-    // Flag missing or stale — preload images now
-    setProgress(94, '正在预加载热力图 (0/132)...');
+    // 标记缺失或过期 — 先加载首24张再启用控件
     const allImages = buildImageList();
+    const FIRST_BATCH = 24;
     const TOTAL = allImages.length;
-    let loaded = 0;
 
-    function loadBatch(start) {
-        return new Promise(function(resolve) {
-            const end = Math.min(start + 6, TOTAL);
-            let batchLoaded = 0;
-            const batchSize = end - start;
-            for (let i = start; i < end; i++) {
-                const img = new Image();
-                img.onload = function() { batchLoaded++; if (batchLoaded >= batchSize) resolve(); };
-                img.onerror = function() { batchLoaded++; if (batchLoaded >= batchSize) resolve(); };
-                img.src = CDN_BASE + allImages[i];
-            }
-        });
-    }
-
-    for (let i = 0; i < TOTAL; i += 6) {
-        await loadBatch(i);
-        loaded = Math.min(TOTAL, i + 6);
-        setProgress(94 + Math.round(loaded / TOTAL * 4), '正在预加载热力图 (' + loaded + '/' + TOTAL + ')...');
+    setProgress(94, '正在预加载热力图 (0/' + FIRST_BATCH + ')...');
+    for (let i = 0; i < FIRST_BATCH; i += 6) {
+        await loadBatchRange(allImages, i, Math.min(i + 6, FIRST_BATCH));
+        const loaded = Math.min(FIRST_BATCH, i + 6);
+        setProgress(94 + Math.round(loaded / FIRST_BATCH * 4), '正在预加载热力图 (' + loaded + '/' + FIRST_BATCH + ')...');
     }
 
     try { localStorage.setItem(IMAGE_READY_KEY, Date.now().toString()); } catch(e) {}
+
+    // 后台继续加载剩余 108 张
+    loadRemainingInBackground();
+
+    function loadBatchRange(list, start, end) {
+        return new Promise(function(resolve) {
+            let done = 0;
+            const n = end - start;
+            for (let i = start; i < end; i++) {
+                const img = new Image();
+                img.onload = function() { done++; if (done >= n) resolve(); };
+                img.onerror = function() { done++; if (done >= n) resolve(); };
+                img.src = CDN_BASE + list[i];
+            }
+        });
+    }
+}
+
+function loadRemainingInBackground() {
+    const allImages = buildImageList();
+    const START = 24;
+    const TOTAL = allImages.length;
+    let idx = START;
+    function nextBatch() {
+        if (idx >= TOTAL) {
+            try { localStorage.setItem('carbonweb_full_loaded', Date.now().toString()); } catch(e) {}
+            return;
+        }
+        const end = Math.min(idx + 6, TOTAL);
+        for (let i = idx; i < end; i++) {
+            const img = new Image();
+            img.src = CDN_BASE + allImages[i];
+        }
+        idx = end;
+        setTimeout(nextBatch, 150);
+    }
+    setTimeout(nextBatch, 500);
 }
 
 await verifyAndPreloadImages();

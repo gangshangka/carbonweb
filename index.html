@@ -164,7 +164,7 @@
         var progressNum = document.getElementById('progressNum');
         var stageText = document.getElementById('stageText');
 
-        // Build the full list of 132 heatmap images (2012-2022, months 01-12)
+        // 只预加载首24张（前2年），约10MB，其余由主页面后台渐进加载
         var cdnBase = 'https://cdn.jsdelivr.net/gh/gangshangka/carbonweb@main/tif/';
         var imageFiles = [];
         for (var y = 2012; y <= 2022; y++) {
@@ -173,13 +173,13 @@
                 imageFiles.push('color_nep' + y + mm + '.png');
             }
         }
-        var TOTAL = imageFiles.length; // 132
+        var TOTAL = 24; // 只加载前24张即可跳转
 
         var loadedCount = 0;
         var allDone = false;
         var redirecting = false;
         var startTime = Date.now();
-        var MIN_DISPLAY_MS = 5000; // minimum 5 seconds to show the loading page
+        var MIN_DISPLAY_MS = 3000; // 最少展示3秒
 
         // Batch loading: 6 concurrent (browser's per-domain connection limit)
         var BATCH_SIZE = 6;
