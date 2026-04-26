@@ -540,21 +540,14 @@ setProgress(100, '加载完成');
 setTimeout(hideLoading, 400);
         }
 
-        // 兜底：捕获 Cesium WebGL shader 编译等运行时错误
-        window.addEventListener('error', function(e) {
-            var msg = e.message || '';
-            if (msg.indexOf('shaderSource') !== -1 || msg.indexOf('WebGLShader') !== -1 || msg.indexOf('WebGL') !== -1) {
-                e.preventDefault();
-                setProgress(100, 'GPU 渲染失败，您的设备可能不支持此页面');
-                loadingOverlay.style.opacity = '0';
-                setTimeout(function() { loadingOverlay.style.display = 'none'; }, 400);
-                if (viewer) { try { viewer.destroy(); } catch(ex) {} }
-            }
-        });
-
         initGlobe().catch(err => {
             console.error(err);
-            setProgress(100, '加载失败，请刷新重试');
+            var msg = err.message || String(err);
+            if (msg.indexOf('shaderSource') !== -1 || msg.indexOf('WebGLShader') !== -1) {
+                setProgress(100, 'GPU 渲染失败，您的设备可能不支持此页面');
+            } else {
+                setProgress(100, '加载失败，请刷新重试');
+            }
             setTimeout(hideLoading, 2000);
         });
     </script>
