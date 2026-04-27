@@ -177,9 +177,6 @@
         let timer = null, playing = false;
         let transitionTimer = null;
         let playSpeed = 500; // 默认 1x (500ms/帧)
-        const PAN_STEP = 0.25;  // 每次向北偏移度数（约一个县级行政区跨度）
-        const PAN_LAT_MIN = 32.65;
-        const PAN_LAT_MAX = 34.35;
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -309,8 +306,6 @@
             }
         }
 
-        let playLat = 33.511; // 自动播放时相机纬度中心
-
         // 模仿微信小程序 _startAutoPlayWithWait / _autoPlayNextWithWait 模式
         // load → crossfade → hold 500ms → next（保证每张图展示时长）
         async function playLoop() {
@@ -321,14 +316,6 @@
             preloadNext(next.year, next.month, 3);
             await loadRaster(next.year, next.month, true);
             if (!playing) return;
-            // 相机向北推移一个行政区跨度
-            playLat += PAN_STEP;
-            if (playLat > PAN_LAT_MAX) playLat = PAN_LAT_MIN;
-            viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, playLat, viewer.camera.positionCartographic.height || 400000),
-                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-                duration: 0.6
-            });
             timer = setTimeout(playLoop, playSpeed);
         }
 
