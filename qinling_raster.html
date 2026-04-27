@@ -125,44 +125,26 @@
 
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
-        // --- WebGL2 能力检测（手机 GPU 兼容性门禁） ---
-        // 编译一个与 Cesium 复杂度相近的 shader 来验证 GPU 驱动
-        var _webgl2Ok = false;
+        // --- WebGL2 基础检测 ---
+        // 只验证 context 创建能力，不做复杂 shader 测试以免误杀合法设备
+        // Cesium 渲染中的 shader 错误由下方 window.error handler 兜底
         (function() {
+            var ok = false;
             try {
                 var c = document.createElement('canvas');
-                var gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false, antialias: false, powerPreference: 'low-power' });
+                var gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
                 if (gl) {
-                    var vs = gl.createShader(gl.VERTEX_SHADER);
-                    var fs = gl.createShader(gl.FRAGMENT_SHADER);
-                    if (vs && fs) {
-                        gl.shaderSource(vs, '#version 300 es\nin vec3 a;uniform mat4 m;void main(){gl_Position=m*vec4(a,1);}');
-                        gl.compileShader(vs);
-                        if (gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-                            gl.shaderSource(fs, '#version 300 es\nprecision highp float;uniform sampler2D t;in vec2 v;out vec4 o;void main(){o=texture(t,v);}');
-                            gl.compileShader(fs);
-                            if (gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-                                var prog = gl.createProgram();
-                                gl.attachShader(prog, vs); gl.attachShader(prog, fs);
-                                gl.linkProgram(prog);
-                                if (gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-                                    _webgl2Ok = true;
-                                }
-                                gl.deleteProgram(prog);
-                            }
-                        }
-                        gl.deleteShader(vs); gl.deleteShader(fs);
-                    }
+                    ok = true;
                     var lose = gl.getExtension('WEBGL_lose_context');
                     if (lose) lose.loseContext();
                 }
             } catch(e) {}
-            if (!_webgl2Ok) {
-                document.getElementById('loadingText').textContent = '您的设备 GPU 不支持此页面';
+            if (!ok) {
+                document.getElementById('loadingText').textContent = '您的设备不支持 WebGL2';
                 document.getElementById('progressNum').textContent = '请使用桌面浏览器或更新手机系统后重试';
                 document.getElementById('progressFill').style.width = '100%';
                 document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #e57373, #ef5350)';
-                throw new Error('WebGL2 shader compilation failed');
+                throw new Error('WebGL2 not supported');
             }
         })();
 
