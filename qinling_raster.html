@@ -107,7 +107,7 @@
         <div class="btn-icon" id="flyQinling" title="斜视秦岭">🏔️</div>
         <div class="btn-icon" id="flyVertical" title="垂直秦岭">⬇️</div>
         <div class="btn-icon play" id="playBtn" title="播放/暂停" style="pointer-events:none;opacity:0.4;">▶</div>
-        <div class="btn-icon" id="speedBtn" title="播放速度" style="pointer-events:none;opacity:0.4;">0.25x</div>
+        <div class="btn-icon" id="speedBtn" title="播放速度" style="pointer-events:none;opacity:0.4;">1x</div>
     </div>
 
     <div class="legend" id="legendPanel">
@@ -176,7 +176,7 @@
         let allMonthsList = [];
         let timer = null, playing = false;
         let transitionTimer = null;
-        let playSpeed = 2000; // 默认 0.25x (2000ms/帧)
+        let playSpeed = 1000; // 默认 0.5x，显示为 1x 基准
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -426,15 +426,15 @@
                 if (playing) stopPlay(); else startPlay();
             });
 
-            // 播放速度切换：0.25x → 0.5x → 1x → 2x → 3x → 0.25x
+            // 播放速度切换（以 0.5x 实际速度 = 1000ms/帧 为 1x 基准显示）
             const speeds = [
-                { label: '0.25x', ms: 2000 },
-                { label: '0.5x', ms: 1000 },
-                { label: '1x', ms: 500 },
-                { label: '2x', ms: 250 },
-                { label: '3x', ms: 167 }
+                { label: '0.5x', ms: 2000 },
+                { label: '1x', ms: 1000 },
+                { label: '2x', ms: 500 },
+                { label: '4x', ms: 250 },
+                { label: '6x', ms: 167 }
             ];
-            let speedIdx = 0;
+            let speedIdx = 1; // 默认 1x
             document.getElementById('speedBtn').addEventListener('click', () => {
                 speedIdx = (speedIdx + 1) % speeds.length;
                 playSpeed = speeds[speedIdx].ms;
