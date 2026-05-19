@@ -186,7 +186,7 @@
         let allMonthsList = [];
         let timer = null, playing = false;
         let transitionTimer = null;
-        let playSpeed = 2000; // 默认 0.5x (比原来减慢50%)
+        let playSpeed = 4000; // 默认最慢档 (4秒/帧)
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -413,19 +413,19 @@
 
             setProgress(80, '正在准备热力图数据');
             viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 800000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 1500000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
                 duration: 2
             });
 
-            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(20000);
-            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(20000);
+            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(40000);
+            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(40000);
             document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 360000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 600000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 }
             });
             document.getElementById('flyVertical').onclick = () => viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 800000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 1500000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
             });
 
@@ -435,13 +435,13 @@
 
             // 播放速度切换（以 0.5x 实际速度 = 1000ms/帧 为 1x 基准显示）
             const speeds = [
+                { label: '0.25x', ms: 4000 },
                 { label: '0.5x', ms: 2000 },
                 { label: '1x', ms: 1000 },
                 { label: '2x', ms: 500 },
-                { label: '4x', ms: 250 },
-                { label: '6x', ms: 167 }
+                { label: '4x', ms: 250 }
             ];
-            let speedIdx = 0; // 默认 0.5x (减慢50%)
+            let speedIdx = 0; // 默认 0.25x 最慢
             document.getElementById('speedBtn').addEventListener('click', () => {
                 speedIdx = (speedIdx + 1) % speeds.length;
                 playSpeed = speeds[speedIdx].ms;
