@@ -338,7 +338,8 @@
         }
 
         function initTimeline() {
-            for (let y = 2012; y <= 2022; y++)
+            var endYear = new Date().getFullYear();
+            for (let y = 2012; y <= endYear; y++)
                 for (let m = 1; m <= 12; m++)
                     allMonthsList.push({ year: String(y), month: String(m) });
             availableYears = [...new Set(allMonthsList.map(m => m.year))].sort();
@@ -351,7 +352,7 @@
 
             timeSlider.max = allMonthsList.length - 1;
             timeStart.textContent = '2012-01';
-            timeEnd.textContent = '2022-12';
+            timeEnd.textContent = endYear + '-12';
 
             const first = allMonthsList[6]; // 2012-07 (夏季数据更有代表性)
             currentYear = first.year; currentMonth = first.month;
@@ -466,7 +467,7 @@ function enableControls() {
 
 function buildImageList() {
     const list = [];
-    for (let y = 2012; y <= 2022; y++) {
+    for (let y = 2012; y <= new Date().getFullYear(); y++) {
         for (let m = 1; m <= 12; m++) {
             list.push('color_nep' + y + (m < 10 ? '0' + m : m) + '.png');
         }
