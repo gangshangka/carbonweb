@@ -81,6 +81,12 @@
             flex: 1; background: transparent; accent-color: #4fc3f7;
         }
         .timeline-label { white-space: nowrap; }
+        .footer-text {
+            position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); z-index: 2000;
+            font-size: 10px; color: rgba(255,255,255,0.12); letter-spacing: 1px;
+            white-space: nowrap; pointer-events: none;
+        }
+        .footer-text a { color: rgba(255,255,255,0.12); text-decoration: none; pointer-events: auto; }
     </style>
 </head>
 <body>
@@ -123,30 +129,34 @@
         <span class="timeline-label" id="timeEnd">2022-12</span>
     </div>
 
+    <div class="footer-text">
+        秦岭碳汇监测平台 &nbsp;|&nbsp;
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">陕ICP备2025062301号-3</a>
+    </div>
+
     <script src="https://registry.npmmirror.com/cesium/1.118.0/files/Build/Cesium/Cesium.js"></script>
     <script>
         // --- WebGL2 基础检测 ---
-        // 只验证 context 创建能力，不做复杂 shader 测试以免误杀合法设备
-        // Cesium 渲染中的 shader 错误由下方 window.error handler 兜底
+        var webgl2Supported = false;
         (function() {
-            var ok = false;
             try {
                 var c = document.createElement('canvas');
                 var gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
                 if (gl) {
-                    ok = true;
+                    webgl2Supported = true;
                     var lose = gl.getExtension('WEBGL_lose_context');
                     if (lose) lose.loseContext();
                 }
             } catch(e) {}
-            if (!ok) {
-                document.getElementById('loadingText').textContent = '您的设备不支持 WebGL2';
-                document.getElementById('progressNum').textContent = '请使用桌面浏览器或更新手机系统后重试';
-                document.getElementById('progressFill').style.width = '100%';
-                document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #e57373, #ef5350)';
-                throw new Error('WebGL2 not supported');
-            }
         })();
+
+        if (!webgl2Supported) {
+            document.getElementById('loadingText').textContent = '⚠️ 您的设备不支持 WebGL2';
+            document.getElementById('progressNum').innerHTML = '请尝试使用 Chrome/Safari 浏览器<br>或微信内置浏览器打开<br><br><button onclick="location.reload()" style="padding:8px 20px;background:rgba(255,255,255,0.12);color:#ddd;border:1px solid rgba(255,255,255,0.25);border-radius:6px;cursor:pointer;font-size:13px;">重新检测</button>';
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('progressFill').style.background = 'linear-gradient(90deg, #e57373, #ef5350)';
+        } else {
+            (function() {
 
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxMjE3N2ZhYi1mOWVhLTQ4YzEtYjdhNy00Nzg2Yzk4N2Q0YWMiLCJpZCI6NDIzMzA0LCJpYXQiOjE3NzcwODMyNTJ9.yuG5-alVYwL_05VXUplwaS7FAsonO95_JucXwiwBTv4';
 
@@ -176,7 +186,7 @@
         let allMonthsList = [];
         let timer = null, playing = false;
         let transitionTimer = null;
-        let playSpeed = 1000; // 默认 0.5x，显示为 1x 基准
+        let playSpeed = 2000; // 默认 0.5x (比原来减慢50%)
 
         const qinlingRect = Cesium.Rectangle.fromDegrees(105.4879751, 32.4823747, 111.0302090, 34.5393788);
         const currentLabel = document.getElementById('currentLabel');
@@ -402,23 +412,19 @@
 
             setProgress(80, '正在准备热力图数据');
             viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 800000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-                duration: 2,
-                complete: () => {
-                    setTimeout(() => viewer.camera.zoomIn(50000), 200);
-                    setTimeout(() => viewer.camera.zoomIn(30000), 700);
-                }
+                duration: 2
             });
 
-            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(10000);
-            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(10000);
+            document.getElementById('zoomInBtn').onclick = () => viewer.camera.zoomIn(20000);
+            document.getElementById('zoomOutBtn').onclick = () => viewer.camera.zoomOut(20000);
             document.getElementById('flyQinling').onclick = () => viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 180000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 360000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-55), roll: 0 }
             });
             document.getElementById('flyVertical').onclick = () => viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 400000),
+                destination: Cesium.Cartesian3.fromDegrees(108.259, 33.511, 800000),
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
             });
 
@@ -434,7 +440,7 @@
                 { label: '4x', ms: 250 },
                 { label: '6x', ms: 167 }
             ];
-            let speedIdx = 1; // 默认 1x
+            let speedIdx = 0; // 默认 0.5x (减慢50%)
             document.getElementById('speedBtn').addEventListener('click', () => {
                 speedIdx = (speedIdx + 1) % speeds.length;
                 playSpeed = speeds[speedIdx].ms;
@@ -571,6 +577,9 @@ setTimeout(hideLoading, 400);
             }
             setTimeout(hideLoading, 2000);
         });
+
+            })(); // end WebGL2 guard
+        } // end else (webgl2Supported)
     </script>
 </body>
 </html>
